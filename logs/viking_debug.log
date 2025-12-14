@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/Users/Codebase/projects/alterpublics/NAMO_nov25/scripts/26_category_classification_only.py", line 19, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'

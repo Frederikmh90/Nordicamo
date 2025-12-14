@@ -1,0 +1,128 @@
+{
+  "total_articles": 996,
+  "sentiment_analysis": {
+    "neutral": {
+      "count": 788,
+      "percentage": 79.11646586345381
+    },
+    "negative": {
+      "count": 182,
+      "percentage": 18.27309236947791
+    },
+    "positive": {
+      "count": 26,
+      "percentage": 2.610441767068273
+    },
+    "null_count": 0,
+    "coverage": 100.0
+  },
+  "category_analysis": {
+    "articles_with_categories": 393,
+    "coverage": 39.45783132530121,
+    "top_categories": [
+      {
+        "category": "Social Issues & Culture",
+        "count": 151,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Crime & Justice",
+        "count": 122,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Politics & Governance",
+        "count": 113,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Economy & Labor",
+        "count": 68,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Immigration & National Identity",
+        "count": 56,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "International Relations & Conflict",
+        "count": 44,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Media & Censorship",
+        "count": 37,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Environment, Climate & Energy",
+        "count": 30,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Technology, Science & Digital Society",
+        "count": 18,
+        "percentage": 3.816793893129771
+      },
+      {
+        "category": "Health & Medicine",
+        "count": 15,
+        "percentage": 3.816793893129771
+      }
+    ],
+    "avg_categories_per_article": 1.727735368956743
+  },
+  "ner_analysis": {
+    "articles_with_entities": 958,
+    "coverage": 96.18473895582329,
+    "total_persons": 5620,
+    "total_locations": 3629,
+    "total_organizations": 1639,
+    "avg_entities_per_article": 11.365344467640918
+  },
+  "parsing_quality": {
+    "successful_parses": 393,
+    "parse_errors": 603,
+    "success_rate": 39.45783132530121,
+    "note": "Sentiment extraction works even with parse errors due to fallback extraction"
+  },
+  "sample_reviews": [
+    {
+      "type": "With Categories",
+      "title": "Tekniske problemer: Vi er tilbake p\u00e5 luften",
+      "sentiment": "neutral",
+      "categories": [
+        "Technology, Science & Digital Society"
+      ],
+      "reasoning": ""
+    },
+    {
+      "type": "Negative Sentiment",
+      "title": "L\u00f8rdagsvold i og rundt Oslo",
+      "sentiment": "negative",
+      "categories": [
+        "Crime & Justice"
+      ],
+      "reasoning": ""
+    },
+    {
+      "type": "With Entities",
+      "title": "Antisemitisk attack mot judisk aff\u00e4rskvinna \u2013 kastades ut ur butik i Norrt\u00e4lje -",
+      "sentiment": "neutral",
+      "entities": {
+        "persons": 10,
+        "locations": 10,
+        "organizations": 1
+      }
+    },
+    {
+      "type": "No Categories (Possible Parse Issue)",
+      "title": "L\u00f6\u00f6f vill cementera fortsatt socialdemokratiskt regeringsinnehav - NyaTider.se",
+      "sentiment": "neutral",
+      "categories": "[]",
+      "note": "Sentiment still extracted via fallback"
+    }
+  ],
+  "overall_quality_score": 68.96586345381526
+}
