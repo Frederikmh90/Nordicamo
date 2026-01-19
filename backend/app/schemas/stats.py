@@ -60,6 +60,16 @@ class TopOutletsResponse(BaseModel):
     data: List[TopOutletItem]
 
 
+class OutletProfileResponse(BaseModel):
+    """Outlet profile summary response."""
+    domain: str
+    outlet_name: Optional[str] = None
+    country: Optional[str] = None
+    total_articles: int
+    first_article_date: Optional[str] = None
+    last_article_date: Optional[str] = None
+
+
 class CategoryItem(BaseModel):
     """Category statistics item."""
     category: str
@@ -109,4 +119,3 @@ class EntityStatisticsResponse(BaseModel):
     articles_with_locations: int
     articles_with_organizations: int
     coverage: Dict[str, float]
-

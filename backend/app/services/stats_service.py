@@ -198,6 +198,32 @@ class StatsService:
             }
             for row in results
         ]
+
+    def get_outlet_profile(self, domain: str) -> Optional[Dict]:
+        """Get outlet profile summary by domain."""
+        query = text("""
+            SELECT
+                domain,
+                actor as outlet_name,
+                country,
+                COUNT(*) as total_articles,
+                MIN(date) as first_article_date,
+                MAX(date) as last_article_date
+            FROM clean_articles
+            WHERE domain = :domain
+            GROUP BY domain, actor, country
+        """)
+        result = self.db.execute(query, {"domain": domain}).fetchone()
+        if not result:
+            return None
+        return {
+            "domain": result[0],
+            "outlet_name": result[1],
+            "country": result[2],
+            "total_articles": result[3],
+            "first_article_date": str(result[4]) if result[4] else None,
+            "last_article_date": str(result[5]) if result[5] else None,
+        }
     
     def get_categories_distribution(
         self,
@@ -600,4 +626,3 @@ class StatsService:
             }
         
         return comparative
-

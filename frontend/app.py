@@ -4,6 +4,26 @@ NAMO Dashboard - Streamlit Frontend
 Interactive dashboard for Nordic Alternative Media Observatory
 """
 
+import sys
+from pathlib import Path
+import importlib.machinery
+import types
+import base64
+
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+def _load_local_module(module_name: str, file_name: str):
+    module_path = (BASE_DIR / file_name).resolve()
+    if not module_path.exists():
+        raise FileNotFoundError(f"Missing {module_name} at {module_path}")
+    loader = importlib.machinery.SourceFileLoader(module_name, str(module_path))
+    module = types.ModuleType(module_name)
+    loader.exec_module(module)
+    sys.modules[module_name] = module
+    return module
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -11,10 +31,21 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import logging
-from pathlib import Path
 from PIL import Image, ImageChops
-from config import get_api_base_url
-from contact import build_access_mailto
+try:
+    from config import get_api_base_url
+except ModuleNotFoundError:
+    get_api_base_url = _load_local_module("config", "config.py").get_api_base_url
+
+try:
+    from overview_helpers import format_freshness
+except ModuleNotFoundError:
+    format_freshness = _load_local_module("overview_helpers", "overview_helpers.py").format_freshness
+
+try:
+    from media_helpers import filter_outlets
+except ModuleNotFoundError:
+    filter_outlets = _load_local_module("media_helpers", "media_helpers.py").filter_outlets
 
 # Configuration
 API_BASE_URL = get_api_base_url()
@@ -71,10 +102,45 @@ def get_trimmed_logo():
         pass
     return LOGO_PATH
 
+
+def build_topbar_html(current_page: str) -> str:
+    nav_items = [
+        ("Nordicamo", "Platform"),
+        ("Explorer", "Countries"),
+        ("Media", "Media"),
+        ("About", "About"),
+        ("Get Access", "Get Access"),
+    ]
+    logo_to_use = get_trimmed_logo()
+    logo_html = "<div class='topbar-logo'>NAMO</div>"
+    if logo_to_use and logo_to_use.exists():
+        data = logo_to_use.read_bytes()
+        encoded = base64.b64encode(data).decode("ascii")
+        logo_html = f"<div class='topbar-logo'><img src='data:image/png;base64,{encoded}' alt='NAMO logo'/></div>"
+
+    links = []
+    for label, page_key in nav_items:
+        active_class = "active" if current_page == page_key else ""
+        links.append(
+            f"<a class='nav-link {active_class}' href='?page={page_key}' target='_self' onclick=\"window.location.search='page={page_key}'; return false;\">{label}</a>"
+        )
+    links_html = "".join(links)
+
+    return f"""
+    <div class="topbar">
+        <div class="topbar-inner">
+            {logo_html}
+            <nav class="topbar-nav">
+                {links_html}
+            </nav>
+        </div>
+    </div>
+    """
+
 # Custom CSS
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
     :root {
         --color-bg: #f4f7f6;
@@ -100,7 +166,7 @@ st.markdown("""
     body, .stApp {
         background: radial-gradient(circle at top left, #eef3f7 0%, #f8fbf9 45%, #f4f7f6 100%);
         color: var(--color-text);
-        font-family: 'Source Sans 3', 'Helvetica', 'Arial', sans-serif;
+        font-family: 'Inter', 'Helvetica', 'Arial', sans-serif;
         line-height: 1.5;
     }
 
@@ -115,10 +181,58 @@ st.markdown("""
     .main-header {
         font-size: 2.2rem;
         font-weight: 600;
-        font-family: 'Space Grotesk', 'Helvetica', 'Arial', sans-serif;
+        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
         color: var(--color-accent);
         margin: 0 0 var(--space-3) 0;
         line-height: 1.2;
+    }
+
+    .section-title {
+        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #23313f;
+        margin: 0 0 var(--space-2) 0;
+    }
+
+    .subtle {
+        color: var(--color-text-muted);
+        font-size: 0.95rem;
+    }
+
+    .hero {
+        background: linear-gradient(135deg, #ffffff 0%, #f0f6f4 100%);
+        border: 1px solid var(--color-border);
+        border-radius: 16px;
+        padding: 24px 28px;
+        box-shadow: var(--shadow-soft);
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #e8f2f8;
+        color: #1f5b86;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+        70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
     }
 
     .topbar {
@@ -132,8 +246,96 @@ st.markdown("""
         backdrop-filter: blur(10px);
         padding: 10px 0;
     }
-    .topbar-spacer {
-        height: 0;
+    .topbar-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 var(--space-5);
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+    .topbar-logo img {
+        height: 40px;
+    }
+    .topbar-nav {
+        display: flex;
+        gap: 18px;
+        margin-left: auto;
+    }
+    .nav-link {
+        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #1b3a53;
+        text-decoration: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        transition: background 120ms ease, color 120ms ease;
+        display: inline-block;
+        outline: none;
+        box-shadow: none;
+    }
+    .nav-link:focus,
+    .nav-link:focus-visible {
+        outline: none;
+        box-shadow: none;
+    }
+    .nav-link:hover {
+        background: #e6eef4;
+    }
+    .nav-link.active {
+        color: #0f3855;
+        text-decoration: none;
+    }
+
+    .media-card {
+        border: 1px solid var(--color-border);
+        border-radius: 14px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.6);
+        box-shadow: var(--shadow-soft);
+        min-height: 170px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .media-card h3 {
+        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
+        font-size: 1.05rem;
+        margin: 0 0 6px 0;
+        color: #15212c;
+    }
+    .media-meta {
+        font-size: 0.9rem;
+        color: var(--color-text-muted);
+        margin-bottom: 8px;
+    }
+    .media-count {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1f77b4;
+    }
+    .stat-card {
+        border: 1px solid var(--color-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        background: #ffffff;
+        box-shadow: var(--shadow-soft);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .stat-card .label {
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+    }
+    .stat-card .value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #15212c;
     }
 
     /* Buttons */
@@ -446,6 +648,37 @@ def fetch_top_outlets(country=None, partisan=None, limit=10):
         return None
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_outlet_profile(domain: str):
+    """Fetch outlet profile summary by domain."""
+    try:
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/outlet-profile",
+            params={"domain": domain},
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error fetching outlet profile: {e}")
+        return None
+
+
+def send_access_request(name: str, email: str, message: str) -> bool:
+    """Send access request to backend for email delivery."""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/api/contact",
+            json={"name": name, "email": email, "message": message},
+            timeout=10
+        )
+        response.raise_for_status()
+        return True
+    except Exception as e:
+        st.error(f"Error sending request: {e}")
+        return False
+
+
 @st.cache_data(ttl=300)
 def fetch_categories(country=None, partisan=None):
     """Fetch category distribution."""
@@ -621,11 +854,7 @@ def show_overview_page():
         st.markdown(
             f"""
             <div style="
-                background: var(--color-card);
-                border: 1px solid var(--color-border);
-                border-radius: var(--radius);
-                box-shadow: var(--shadow-soft);
-                padding: 16px 18px;
+                padding: 4px 2px;
                 display:flex;
                 flex-direction:column;
                 gap:6px;
@@ -638,45 +867,38 @@ def show_overview_page():
             unsafe_allow_html=True,
         )
 
-    # Data freshness indicator - Enhanced display
-    freshness_col1, freshness_col2 = st.columns([3, 1])
-    with freshness_col1:
-        if freshness and freshness.get("hours_ago") is not None:
-            hours_ago = freshness.get("hours_ago", 0)
-            if hours_ago < 24:
-                freshness_text = f"Last updated: {hours_ago} hours ago"
-            elif hours_ago < 168:  # 7 days
-                days_ago = hours_ago // 24
-                freshness_text = f"Last updated: {days_ago} days ago"
-            else:
-                weeks_ago = hours_ago // 168
-                freshness_text = f"Last updated: {weeks_ago} weeks ago"
-            
-            last_article = freshness.get('last_article_date', 'N/A')
-            if last_article and last_article != 'N/A':
-                last_article_formatted = last_article[:10] if len(str(last_article)) >= 10 else str(last_article)
-            else:
-                last_article_formatted = "N/A"
-            
-            st.info(f"{freshness_text} | Last article: {last_article_formatted}")
+    # Live status
+    hero_left, hero_right = st.columns([2.3, 1.2])
+    with hero_left:
+        st.markdown(
+            "<div class='section-title'>Nordic Alternative Media Observatory</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div class='subtle'>Live monitoring of alternative media signals across the Nordic region, "
+            "with searchable historical coverage.</div>",
+            unsafe_allow_html=True,
+        )
+    with hero_right:
+        st.markdown(
+            "<div class='chip'><span class='pulse'></span> Live intake active</div>",
+            unsafe_allow_html=True,
+        )
+        if freshness:
+            freshness_text, last_article_formatted = format_freshness(freshness)
+            st.markdown(
+                f"<div class='subtle' style='margin-top:8px;'>{freshness_text}<br/>Last article: {last_article_formatted}</div>",
+                unsafe_allow_html=True,
+            )
         else:
-            st.info("Data freshness information unavailable")
-    
-    with freshness_col2:
-        # Data dictionary expander
-        with st.expander("What does this mean?"):
-            st.markdown("""
-            **Data Dictionary:**
-            - **Partisan**: Political leaning of outlet (Right, Left, Other)
-            - **Entity**: Person, location, or organization mentioned in articles
-            - **Sentiment**: Emotional tone (positive/neutral/negative)
-            - **Topic**: Thematic cluster identified by machine learning
-            - **Coverage**: Date range of articles in the dataset
-            - **Growth Rate**: Average change in article volume per year
-            - **Concentration**: Percentage of articles from top 3 outlets
-            """)
+            st.markdown(
+                "<div class='subtle' style='margin-top:8px;'>Freshness data unavailable</div>",
+                unsafe_allow_html=True,
+            )
 
-    # Enhanced KPI strip with new metrics
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+
+    # Signal KPIs
     if overview:
         k1, k2, k3, k4, k5 = st.columns(5)
         with k1:
@@ -685,24 +907,18 @@ def show_overview_page():
         with k2:
             render_kpi("Outlets", f"{overview.get('total_outlets', 0):,}")
         with k3:
-            # Articles per outlet average
             avg_per_outlet = enhanced_overview.get('avg_articles_per_outlet', 0) if enhanced_overview else 0
             render_kpi("Avg per Outlet", f"{avg_per_outlet:,.0f}", "articles/outlet")
         with k4:
-            # Coverage with year range and article count
             coverage_years = enhanced_overview.get('coverage_years') if enhanced_overview else None
             if not coverage_years:
                 dr = overview.get("date_range", {})
                 earliest = dr.get("earliest") or "N/A"
                 latest = dr.get("latest") or "N/A"
                 coverage_years = f"{earliest[:4]}-{latest[:4]}" if earliest != "N/A" else "N/A"
-            
-            # Format: "2003-2025 (740,129 articles)"
-            coverage_display = f"{coverage_years}"
             coverage_subtitle = f"({total_articles:,} articles)"
-            render_kpi("Coverage", coverage_display, coverage_subtitle)
+            render_kpi("Coverage", f"{coverage_years}", coverage_subtitle)
         with k5:
-            # Growth rate
             growth_rate = enhanced_overview.get('growth_rate_per_year') if enhanced_overview else None
             if growth_rate:
                 growth_display = f"+{growth_rate:,.0f}" if growth_rate > 0 else f"{growth_rate:,.0f}"
@@ -717,157 +933,7 @@ def show_overview_page():
         return
     
     st.divider()
-    
-    # Articles by country (table) + Partisan distribution (chart) + Right box
-    with st.container():
-        country_data = pd.DataFrame(
-            list(overview['by_country'].items()),
-            columns=['Country', 'Articles']
-        ).sort_values('Articles', ascending=False)
 
-        partisan_raw = pd.DataFrame(
-            list(overview.get('by_partisan', {}).items()),
-            columns=['Partisan', 'Articles']
-        )
-        if len(partisan_raw) > 0:
-            partisan_data = partisan_raw.copy()
-            partisan_data['Partisan'] = partisan_data['Partisan'].str.strip().str.title()
-            partisan_data = partisan_data.sort_values('Articles', ascending=False)
-        else:
-            partisan_data = partisan_raw
-
-        c1, c2, c3, c4 = st.columns([1, 1.6, 0.9, 0.9])
-        with c1:
-            st.markdown("**Countries**")
-            st.dataframe(
-                country_data.style.format({'Articles': '{:,}'}),
-                use_container_width=True,
-                hide_index=True,
-                height=260
-            )
-        with c2:
-            st.markdown("**Partisan Distribution**")
-            if len(partisan_data) > 0:
-                # Create color mapping - ensure exact match with data
-                color_map = {
-                    'Right': '#0066CC',   # blue
-                    'Left': '#DC143C',    # red
-                    'Other': '#2ca02c'    # green
-                }
-                
-                # Sort data according to category order
-                category_order = ["Right", "Left", "Other"]
-                partisan_data_sorted = partisan_data.copy()
-                partisan_data_sorted['Partisan'] = pd.Categorical(
-                    partisan_data_sorted['Partisan'], 
-                    categories=category_order, 
-                    ordered=True
-                )
-                partisan_data_sorted = partisan_data_sorted.sort_values('Partisan')
-                
-                # Create colors list matching the sorted order
-                colors_list = [color_map.get(str(name), '#808080') for name in partisan_data_sorted['Partisan'].values]
-                
-                # Use go.Pie for explicit color control
-                fig = go.Figure(data=[go.Pie(
-                    labels=partisan_data_sorted['Partisan'].values,
-                    values=partisan_data_sorted['Articles'].values,
-                    hole=0.45,
-                    marker=dict(colors=colors_list, line=dict(color='white', width=2)),
-                    textinfo='none',
-                    hovertemplate='<b>%{label}</b><br>Articles: %{value:,}<br>Percentage: %{percent}<extra></extra>'
-                )])
-                fig.update_layout(
-                    height=260,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    showlegend=True,
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=-0.2,
-                        xanchor="center",
-                        x=0.5,
-                        font=dict(size=12)
-                    )
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No partisan data.")
-        with c3:
-            st.markdown("**Live ingest**")
-            st.markdown(
-                """
-                <div style="
-                    background: var(--color-card);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius);
-                    box-shadow: var(--shadow-soft);
-                    padding: 14px;
-                    height: 260px;
-                    display:flex;
-                    flex-direction:column;
-                    gap:8px;
-                    justify-content:space-between;
-                ">
-                    <div style="font-size:13px; color: var(--color-text-muted);">
-                        Wiring to full DB soon. Will show last run, delta, and per-country freshness.
-                    </div>
-                    <div style="font-size:13px; color: var(--color-text-muted);">
-                        • Last run: placeholder<br/>
-                        • +1.8k articles (14d)<br/>
-                        • Per-country freshness dots
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with c4:
-            # Fetch comparative metrics for outlet concentration
-            comparative = fetch_comparative_metrics()
-            st.markdown("**Media Diversity**")
-            
-            # Build the content with percentages
-            percentages_html = ""
-            if comparative:
-                countries_order = ["denmark", "sweden", "norway", "finland"]
-                for country in countries_order:
-                    country_data = comparative.get(country, {})
-                    concentration = country_data.get("outlet_concentration", 0)
-                    percentages_html += f"<div style='margin-bottom: 8px;'><strong>{country.capitalize()}:</strong> {concentration}%</div>"
-            else:
-                # Fallback: show overall concentration
-                overall_conc = fetch_outlet_concentration()
-                if overall_conc:
-                    concentration = overall_conc.get('concentration_percentage', 0)
-                    percentages_html = f"<div style='margin-bottom: 8px;'><strong>Overall:</strong> {concentration}%</div>"
-                else:
-                    percentages_html = "<div style='margin-bottom: 8px;'>Data unavailable</div>"
-            
-            st.markdown(
-                f"""
-                <div style="
-                    background: var(--color-card);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius);
-                    box-shadow: var(--shadow-soft);
-                    padding: 14px;
-                    height: 260px;
-                    display:flex;
-                    flex-direction:column;
-                    gap:8px;
-                    justify-content:space-between;
-                ">
-                    <div style="font-size:13px; color: var(--color-text-muted); line-height:1.5; margin-bottom: 12px;">
-                        Percentage of articles published by the top 3 outlets in each country.
-                    </div>
-                    <div style="font-size:14px; color: var(--color-text);">
-                        {percentages_html}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-    
     # Articles over time - Multi-country comparison with year slider
     st.subheader("Articles Over Time")
     
@@ -913,8 +979,8 @@ def show_overview_page():
     with col3:
         granularity = st.selectbox(
             "Time Granularity",
-            options=["year", "month", "week"],
-            index=1,
+            options=["Year", "Month", "Week"],
+            index=0,
             help="Time period grouping for the time series chart (year, month, or week)"
         )
     
@@ -935,7 +1001,7 @@ def show_overview_page():
             time_data = fetch_articles_over_time(
                 country=country,
                 partisan=selected_partisan,
-                granularity=granularity,
+                granularity=granularity.lower(),
                 date_from=str(date_from) if date_from else None,
                 date_to=str(date_to) if date_to else None
             )
@@ -976,7 +1042,7 @@ def show_overview_page():
         time_data = fetch_articles_over_time(
             country=selected_country,
             partisan=selected_partisan,
-            granularity=granularity,
+            granularity=granularity.lower(),
             date_from=str(date_from) if date_from else None,
             date_to=str(date_to) if date_to else None
         )
@@ -1008,403 +1074,170 @@ def show_overview_page():
         else:
             st.info("No data available for selected filters.")
     
-    # Category distribution
-    st.subheader("News Categories")
-    st.caption("News categories are based on automated content analysis using mistralai/Mistral-Small-24B-Instruct-2501 on content level")
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        categories_data = fetch_categories(country=selected_country, partisan=selected_partisan)
-        if categories_data and categories_data.get('data'):
-            df_cat = pd.DataFrame(categories_data['data'])
-            df_cat = df_cat.sort_values('count', ascending=False)
-            
-            # Process category names to add line breaks using <br> (HTML) - break into 2-3 lines
-            def format_category_name(name):
-                # First, replace " & " with " &<br>" for line breaks
-                name = name.replace(' & ', ' &<br>')
-                
-                # Split by existing line breaks and process each part
-                parts = name.split('<br>')
-                result_parts = []
-                
-                for part in parts:
-                    # If a part is longer than 18 characters, break it further
-                    if len(part) > 18:
-                        words = part.split()
-                        if len(words) >= 3:
-                            # Break into 2-3 lines: aim for ~12-15 chars per line
-                            # Try to break at natural points
-                            if ', ' in part:
-                                # Break at comma
-                                subparts = part.split(', ')
-                                if len(subparts) == 2:
-                                    part = subparts[0] + ',<br>' + subparts[1]
-                                else:
-                                    # Multiple commas - break into 2-3 parts
-                                    mid = len(subparts) // 2
-                                    part = ',<br>'.join(subparts[:mid]) + ',<br>' + ',<br>'.join(subparts[mid:])
-                            else:
-                                # Break at word boundaries - split into roughly 2-3 equal parts
-                                if len(words) <= 4:
-                                    # 2 lines
-                                    mid = len(words) // 2
-                                    part = ' '.join(words[:mid]) + '<br>' + ' '.join(words[mid:])
-                                else:
-                                    # 3 lines
-                                    third = len(words) // 3
-                                    part = ' '.join(words[:third]) + '<br>' + ' '.join(words[third:2*third]) + '<br>' + ' '.join(words[2*third:])
-                    result_parts.append(part)
-                
-                return '<br>'.join(result_parts)
-            
-            # Create display names with line breaks for chart only
-            df_cat_display = df_cat.copy()
-            df_cat_display['category_display'] = df_cat_display['category'].apply(format_category_name)
-            
-            # Create the figure with original category names first
-            fig = px.bar(
-                df_cat,
-                x='category',
-                y='count',
-                color='count',
-                text='count',
-                color_continuous_scale='Blues',
-                title="Article Distribution by Category"
-            )
-            
-            # Update x-axis with formatted labels using ticktext and tickvals
-            fig.update_xaxes(
-                ticktext=df_cat_display['category_display'].values,
-                tickvals=df_cat['category'].values,
-                tickangle=0,
-                tickfont={'size': 10},
-                categoryorder='total descending'
-            )
-            
-            # Store original category names for hover tooltip
-            fig.update_traces(
-                texttemplate='%{text:,}',
-                textposition='outside',
-                hovertemplate='<b>%{x}</b><br>Articles: %{y:,}<extra></extra>'
-            )
-            
-            fig.update_layout(
-                xaxis_title="Category",
-                yaxis_title="Number of Articles",
-                height=480,  # Increased height to accommodate all labels
-                margin=dict(b=150, t=100, l=50, r=50),  # Increased top margin for value labels, bottom for category labels
-                showlegend=False
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No category data available.")
-    
-    with col2:
-        if categories_data and categories_data.get('data'):
-            # Display only original columns (category and count), not category_display
-            df_cat_table = df_cat[['category', 'count']].copy()
-            st.dataframe(
-                df_cat_table.style.format({'count': '{:,}'}),
-                use_container_width=True,
-                hide_index=True
-            )
-    
-    # Sentiment analysis
-    st.subheader("Sentiment Analysis")
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        sentiment_data = fetch_sentiment(country=selected_country, partisan=selected_partisan)
-        if sentiment_data and sentiment_data.get('data'):
-            df_sent = pd.DataFrame(sentiment_data['data'])
-            
-            fig = px.bar(
-                df_sent,
-                x='sentiment',
-                y='count',
-                color='sentiment',
-                text='count',
-                color_discrete_map={
-                    'positive': '#2ca02c',
-                    'neutral': '#808080',
-                    'negative': '#d62728'
-                },
-                title="Sentiment Distribution"
-            )
-            fig.update_traces(
-                texttemplate='%{text:,}',
-                textposition='outside',
-                hovertemplate='<b>%{x}</b><br>Articles: %{y:,}<br>Avg Score: %{customdata:.2f}<extra></extra>',
-                customdata=df_sent['avg_score']
-            )
-            fig.update_layout(
-                xaxis_title="Sentiment",
-                yaxis_title="Number of Articles",
-                height=350,
-                showlegend=False
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No sentiment data available.")
-    
-    with col2:
-        if sentiment_data and sentiment_data.get('data'):
-            st.dataframe(
-                df_sent[['sentiment', 'count', 'avg_score']].style.format({
-                    'count': '{:,}',
-                    'avg_score': '{:.2f}'
-                }),
-                use_container_width=True,
-                hide_index=True
-            )
-    
-    # Named Entity Recognition (NER)
-    st.subheader("Named Entity Recognition")
-    
-    # Entity statistics
-    entity_stats = fetch_entity_statistics(country=selected_country, partisan=selected_partisan)
-    if entity_stats:
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Articles with Persons", f"{entity_stats.get('articles_with_persons', 0):,}")
-        with col2:
-            st.metric("Articles with Locations", f"{entity_stats.get('articles_with_locations', 0):,}")
-        with col3:
-            st.metric("Articles with Organizations", f"{entity_stats.get('articles_with_organizations', 0):,}")
-        with col4:
-            total = entity_stats.get('total_articles', 0)
-            coverage = entity_stats.get('coverage', {})
-            avg_coverage = sum(coverage.values()) / len(coverage) if coverage else 0
-            st.metric("Avg Coverage", f"{avg_coverage:.1f}%")
-    
-    # Top entities by type
-    entity_type = st.selectbox(
-        "Entity Type",
-        options=["persons", "locations", "organizations"],
-        index=0,
-        key="entity_type_selector",
-        help="Type of named entities to analyze: persons (people), locations (places), or organizations (companies, institutions)"
-    )
-    
-    entities_data = fetch_top_entities(
-        entity_type=entity_type,
-        country=selected_country,
-        partisan=selected_partisan,
-        limit=15
-    )
-    
-    if entities_data and entities_data.get('data'):
-        df_entities = pd.DataFrame(entities_data['data'])
-        df_entities = df_entities.sort_values('count', ascending=False)
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            # Create stacked bar chart showing sentiment breakdown
-            fig = go.Figure()
-            
-            fig.add_trace(go.Bar(
-                name='Positive',
-                x=df_entities['entity_name'],
-                y=df_entities['positive_count'],
-                marker_color='#2ca02c',
-                hovertemplate='<b>%{x}</b><br>Positive: %{y:,}<extra></extra>'
-            ))
-            fig.add_trace(go.Bar(
-                name='Neutral',
-                x=df_entities['entity_name'],
-                y=df_entities['neutral_count'],
-                marker_color='#808080',
-                hovertemplate='<b>%{x}</b><br>Neutral: %{y:,}<extra></extra>'
-            ))
-            fig.add_trace(go.Bar(
-                name='Negative',
-                x=df_entities['entity_name'],
-                y=df_entities['negative_count'],
-                marker_color='#d62728',
-                hovertemplate='<b>%{x}</b><br>Negative: %{y:,}<extra></extra>'
-            ))
-            
-            fig.update_layout(
-                barmode='stack',
-                title=f"Top {entity_type.capitalize()} by Mention Count (with Sentiment)",
-                xaxis_title=entity_type.capitalize(),
-                yaxis_title="Number of Mentions",
-                height=450,
-                xaxis={'categoryorder': 'total descending'},
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.dataframe(
-                df_entities[['entity_name', 'count', 'positive_count', 'negative_count', 'neutral_count']].style.format({
-                    'count': '{:,}',
-                    'positive_count': '{:,}',
-                    'negative_count': '{:,}',
-                    'neutral_count': '{:,}'
-                }),
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    'entity_name': 'Entity',
-                    'count': 'Total',
-                    'positive_count': 'Pos',
-                    'negative_count': 'Neg',
-                    'neutral_count': 'Neu'
-                }
-            )
-    else:
-        st.info(f"No {entity_type} data available.")
-    
-    # Topic Modeling
-    st.divider()
-    st.subheader("Topic Modeling")
-    
-    # Topic statistics
-    topic_stats = fetch_topic_statistics(country=selected_country, partisan=selected_partisan)
-    if topic_stats:
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Articles with Topics", f"{topic_stats.get('articles_with_topics', 0):,}")
-        with col2:
-            st.metric("Unique Topics", topic_stats.get('unique_topics', 0))
-        with col3:
-            st.metric("Total Articles", f"{topic_stats.get('total_articles', 0):,}")
-        with col4:
-            coverage = topic_stats.get('coverage', 0)
-            st.metric("Topic Coverage", f"{coverage:.1f}%")
-    
-    # Topic distribution
-    st.markdown("#### Topic Distribution")
-    topic_dist_data = fetch_topic_distribution(
-        country=selected_country,
-        partisan=selected_partisan
-    )
-    
-    if topic_dist_data and topic_dist_data.get('data'):
-        df_topics = pd.DataFrame(topic_dist_data['data'])
-        df_topics = df_topics.sort_values('count', ascending=False)
-        # Filter out noise topic (-1) if present
-        df_topics = df_topics[df_topics['topic_id'] != -1]
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            fig = px.bar(
-                df_topics.head(20),  # Show top 20 topics
-                x='topic_id',
-                y='count',
-                color='avg_probability',
-                text='count',
-                color_continuous_scale='Viridis',
-                title="Top Topics by Article Count"
-            )
-            fig.update_traces(
-                texttemplate='%{text:,}',
-                textposition='outside',
-                hovertemplate='<b>Topic %{x}</b><br>Articles: %{y:,}<br>Avg Probability: %{customdata:.3f}<extra></extra>',
-                customdata=df_topics.head(20)['avg_probability']
-            )
-            fig.update_layout(
-                xaxis_title="Topic ID",
-                yaxis_title="Number of Articles",
-                height=450,
-                xaxis={'categoryorder': 'total descending'},
-                showlegend=False
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.dataframe(
-                df_topics.head(20)[['topic_id', 'count', 'avg_probability']].style.format({
-                    'count': '{:,}',
-                    'avg_probability': '{:.3f}'
-                }),
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    'topic_id': 'Topic',
-                    'count': 'Articles',
-                    'avg_probability': 'Avg Prob'
-                }
-            )
-    
-    # Topics over time
-    st.markdown("#### Topics Over Time")
-    col1, col2 = st.columns([1, 3])
-    
-    with col1:
-        selected_topic_id = st.selectbox(
-            "Select Topic",
-            options=[None] + sorted(df_topics['topic_id'].tolist() if topic_dist_data and topic_dist_data.get('data') else []),
-            format_func=lambda x: f"All Topics" if x is None else f"Topic {x}",
-            key="topic_selector",
-            help="Select a specific topic to analyze its distribution over time, or view all topics together"
-        )
-        granularity = st.selectbox(
-            "Time Granularity",
-            options=["day", "week", "month", "year"],
-            index=2,
-            key="topic_granularity",
-            help="Time period grouping for the time series chart (day, week, month, or year)"
-        )
-    
-    with col2:
-        topics_time_data = fetch_topics_over_time(
-            topic_id=selected_topic_id,
-            country=selected_country,
-            granularity=granularity
-        )
-        
-        if topics_time_data and topics_time_data.get('data'):
-            df_time = pd.DataFrame(topics_time_data['data'])
-            
-            if selected_topic_id is None:
-                # Show all topics as separate lines
-                fig = px.line(
-                    df_time,
-                    x='date',
-                    y='count',
-                    color='topic_id',
-                    markers=True,
-                    title=f"All Topics Over Time ({granularity.capitalize()})"
-                )
-                fig.update_traces(
-                    line=dict(width=2),
-                    marker=dict(size=6)
-                )
-            else:
-                # Show single topic
-                df_time = df_time[df_time['topic_id'] == selected_topic_id]
-                df_time = df_time.sort_values('date')
-                fig = px.line(
-                    df_time,
-                    x='date',
-                    y='count',
-                    markers=True,
-                    title=f"Topic {selected_topic_id} Over Time ({granularity.capitalize()})"
-                )
-                fig.update_traces(
-                    line=dict(width=3, color='#1f77b4'),
-                    marker=dict(size=8)
-                )
-            
-            fig.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Number of Articles",
-                height=400,
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No topic time series data available.")
+
 
 
 def show_topic_analysis_page():
     """Show dedicated topic analysis page."""
-    st.markdown('<h1 class="main-header">🔍 Topic Analysis</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Dataset</h1>', unsafe_allow_html=True)
+
+    overview = fetch_enhanced_overview() or fetch_overview()
+    if overview:
+        st.markdown("<div class='section-title'>Coverage overview</div>", unsafe_allow_html=True)
+        with st.container():
+            country_data = pd.DataFrame(
+                list(overview['by_country'].items()),
+                columns=['Country', 'Articles']
+            ).sort_values('Articles', ascending=True)
+
+            partisan_raw = pd.DataFrame(
+                list(overview.get('by_partisan', {}).items()),
+                columns=['Partisan', 'Articles']
+            )
+            if len(partisan_raw) > 0:
+                partisan_data = partisan_raw.copy()
+                partisan_data['Partisan'] = partisan_data['Partisan'].str.strip().str.title()
+                partisan_data = partisan_data.sort_values('Articles', ascending=False)
+            else:
+                partisan_data = partisan_raw
+
+            left, right = st.columns([1.4, 1])
+            with left:
+                st.markdown("**Articles by country**")
+                fig = px.bar(
+                    country_data,
+                    x="Articles",
+                    y="Country",
+                    orientation="h",
+                    color_discrete_sequence=["#1f77b4"],
+                    text="Articles",
+                )
+                fig.update_traces(texttemplate="%{text:,}", textposition="outside")
+                fig.update_layout(
+                    height=320,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    xaxis_title="Articles",
+                    yaxis_title="",
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            with right:
+                st.markdown("**Partisan distribution**")
+                if len(partisan_data) > 0:
+                    color_map = {
+                        'Right': '#0066CC',
+                        'Left': '#DC143C',
+                        'Other': '#2ca02c'
+                    }
+                    category_order = ["Right", "Left", "Other"]
+                    partisan_data_sorted = partisan_data.copy()
+                    partisan_data_sorted['Partisan'] = pd.Categorical(
+                        partisan_data_sorted['Partisan'],
+                        categories=category_order,
+                        ordered=True
+                    )
+                    partisan_data_sorted = partisan_data_sorted.sort_values('Partisan')
+                    colors_list = [color_map.get(str(name), '#808080') for name in partisan_data_sorted['Partisan'].values]
+
+                    fig = go.Figure(data=[go.Pie(
+                        labels=partisan_data_sorted['Partisan'].values,
+                        values=partisan_data_sorted['Articles'].values,
+                        hole=0.45,
+                        marker=dict(colors=colors_list, line=dict(color='white', width=2)),
+                        textinfo='none',
+                        hovertemplate='<b>%{label}</b><br>Articles: %{value:,}<br>Percentage: %{percent}<extra></extra>'
+                    )])
+                    fig.update_layout(
+                        height=320,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=-0.2,
+                            xanchor="center",
+                            x=0.5,
+                            font=dict(size=12)
+                        )
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No partisan data.")
+
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            card_left, card_right = st.columns(2)
+            with card_left:
+                st.markdown("**Live ingest**")
+                st.markdown(
+                    """
+                    <div style="
+                        background: var(--color-card);
+                        border: 1px solid var(--color-border);
+                        border-radius: var(--radius);
+                        box-shadow: var(--shadow-soft);
+                        padding: 14px;
+                        min-height: 180px;
+                        display:flex;
+                        flex-direction:column;
+                        gap:8px;
+                        justify-content:space-between;
+                    ">
+                        <div style="font-size:13px; color: var(--color-text-muted);">
+                            Wiring to full DB soon. Will show last run, delta, and per-country freshness.
+                        </div>
+                        <div style="font-size:13px; color: var(--color-text-muted);">
+                            • Last run: placeholder<br/>
+                            • +1.8k articles (14d)<br/>
+                            • Per-country freshness dots
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with card_right:
+                comparative = fetch_comparative_metrics()
+                st.markdown("**Media diversity**")
+
+                percentages_html = ""
+                if comparative:
+                    countries_order = ["denmark", "sweden", "norway", "finland"]
+                    for country in countries_order:
+                        country_data = comparative.get(country, {})
+                        concentration = country_data.get("outlet_concentration", 0)
+                        percentages_html += f"<div style='margin-bottom: 8px;'><strong>{country.capitalize()}:</strong> {concentration}%</div>"
+                else:
+                    overall_conc = fetch_outlet_concentration()
+                    if overall_conc:
+                        concentration = overall_conc.get('concentration_percentage', 0)
+                        percentages_html = f"<div style='margin-bottom: 8px;'><strong>Overall:</strong> {concentration}%</div>"
+                    else:
+                        percentages_html = "<div style='margin-bottom: 8px;'>Data unavailable</div>"
+
+                st.markdown(
+                    f"""
+                    <div style="
+                        background: var(--color-card);
+                        border: 1px solid var(--color-border);
+                        border-radius: var(--radius);
+                        box-shadow: var(--shadow-soft);
+                        padding: 14px;
+                        min-height: 180px;
+                        display:flex;
+                        flex-direction:column;
+                        gap:8px;
+                        justify-content:space-between;
+                    ">
+                        <div style="font-size:13px; color: var(--color-text-muted); line-height:1.5; margin-bottom: 12px;">
+                            Percentage of articles published by the top 3 outlets in each country.
+                        </div>
+                        <div style="font-size:14px; color: var(--color-text);">
+                            {percentages_html}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        st.divider()
     
     # Filters
     col1, col2 = st.columns(2)
@@ -1413,283 +1246,206 @@ def show_topic_analysis_page():
             "Filter by Country",
             options=[None, "denmark", "sweden", "norway", "finland"],
             format_func=lambda x: "All Countries" if x is None else x.capitalize(),
-            key="topic_country_filter",
-            help="Select a specific Nordic country or view all countries together"
+            key="dataset_country_filter",
+            help="Select a specific Nordic country or view all countries together",
         )
     with col2:
         selected_partisan = st.selectbox(
             "Filter by Partisan",
-            options=[None, "left", "right", "center"],
-            format_func=lambda x: "All" if x is None else x.capitalize(),
-            key="topic_partisan_filter",
-            help="Political orientation of the media outlet (self-identified or classified)"
+            options=[None, "Right", "Left", "Other"],
+            format_func=lambda x: "All" if x is None else x,
+            key="dataset_partisan_filter",
+            help="Political orientation of the media outlet (self-identified or classified)",
         )
-    
-    st.divider()
-    
-    # Topic statistics
-    st.subheader("📊 Topic Statistics")
-    topic_stats = fetch_topic_statistics(country=selected_country, partisan=selected_partisan)
-    if topic_stats:
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            st.metric("Total Articles", f"{topic_stats.get('total_articles', 0):,}")
-        with col2:
-            st.metric("Articles with Topics", f"{topic_stats.get('articles_with_topics', 0):,}")
-        with col3:
-            st.metric("Unique Topics", topic_stats.get('unique_topics', 0))
-        with col4:
-            coverage = topic_stats.get('coverage', 0)
-            st.metric("Topic Coverage", f"{coverage:.1f}%")
-        with col5:
-            avg_prob = topic_stats.get('avg_probability', 0)
-            st.metric("Avg Probability", f"{avg_prob:.3f}")
-    
-    st.divider()
-    
-    # Topic distribution
-    st.subheader("📈 Topic Distribution")
-    topic_dist_data = fetch_topic_distribution(
-        country=selected_country,
-        partisan=selected_partisan
-    )
-    
-    if topic_dist_data and topic_dist_data.get('data'):
-        df_topics = pd.DataFrame(topic_dist_data['data'])
-        df_topics = df_topics.sort_values('count', ascending=False)
-        # Filter out noise topic (-1) if present
-        df_topics = df_topics[df_topics['topic_id'] != -1]
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            # Show top 30 topics
-            top_n = st.slider("Number of Topics to Display", 10, min(50, len(df_topics)), 20, key="topic_top_n")
-            
+
+    # Category distribution
+    st.subheader("News Categories")
+    st.caption("News categories are based on automated content analysis using mistralai/Mistral-Small-24B-Instruct-2501 on content level")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        categories_data = fetch_categories(country=selected_country, partisan=selected_partisan)
+        if categories_data and categories_data.get('data'):
+            df_cat = pd.DataFrame(categories_data['data'])
+            df_cat = df_cat.sort_values('count', ascending=False)
+
+            def format_category_name(name):
+                name = name.replace(' & ', ' &<br>')
+                parts = name.split('<br>')
+                result_parts = []
+
+                for part in parts:
+                    if len(part) > 18:
+                        words = part.split()
+                        if len(words) >= 3:
+                            if ', ' in part:
+                                subparts = part.split(', ')
+                                if len(subparts) == 2:
+                                    part = subparts[0] + ',<br>' + subparts[1]
+                                else:
+                                    mid = len(subparts) // 2
+                                    part = ',<br>'.join(subparts[:mid]) + ',<br>' + ',<br>'.join(subparts[mid:])
+                            else:
+                                if len(words) <= 4:
+                                    mid = len(words) // 2
+                                    part = ' '.join(words[:mid]) + '<br>' + ' '.join(words[mid:])
+                                else:
+                                    third = len(words) // 3
+                                    part = ' '.join(words[:third]) + '<br>' + ' '.join(words[third:2*third]) + '<br>' + ' '.join(words[2*third:])
+                    result_parts.append(part)
+
+                return '<br>'.join(result_parts)
+
+            df_cat_display = df_cat.copy()
+            df_cat_display['category_display'] = df_cat_display['category'].apply(format_category_name)
+
             fig = px.bar(
-                df_topics.head(top_n),
-                x='topic_id',
+                df_cat,
+                x='category',
                 y='count',
-                color='avg_probability',
+                color='count',
                 text='count',
-                color_continuous_scale='Viridis',
-                title=f"Top {top_n} Topics by Article Count"
+                color_continuous_scale='Blues',
+                title="Article Distribution by Category",
             )
+
+            fig.update_xaxes(
+                ticktext=df_cat_display['category_display'].values,
+                tickvals=df_cat['category'].values,
+                tickangle=0,
+                tickfont={'size': 10},
+                categoryorder='total descending',
+            )
+
             fig.update_traces(
                 texttemplate='%{text:,}',
                 textposition='outside',
-                hovertemplate='<b>Topic %{x}</b><br>Articles: %{y:,}<br>Avg Probability: %{customdata:.3f}<extra></extra>',
-                customdata=df_topics.head(top_n)['avg_probability']
+                hovertemplate='<b>%{x}</b><br>Articles: %{y:,}<extra></extra>',
             )
+
             fig.update_layout(
-                xaxis_title="Topic ID",
+                xaxis_title="Category",
                 yaxis_title="Number of Articles",
-                height=500,
-                xaxis={'categoryorder': 'total descending'},
-                showlegend=False
+                height=480,
+                margin=dict(b=150, t=100, l=50, r=50),
+                showlegend=False,
             )
             st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.markdown("### Top Topics Table")
+        else:
+            st.info("No category data available.")
+
+    with col2:
+        if categories_data and categories_data.get('data'):
+            df_cat_table = df_cat[['category', 'count']].copy()
             st.dataframe(
-                df_topics.head(top_n)[['topic_id', 'count', 'avg_probability']].style.format({
-                    'count': '{:,}',
-                    'avg_probability': '{:.3f}'
-                }),
+                df_cat_table.style.format({'count': '{:,}'}),
                 use_container_width=True,
                 hide_index=True,
-                column_config={
-                    'topic_id': 'Topic',
-                    'count': 'Articles',
-                    'avg_probability': 'Avg Prob'
-                },
-                height=500
             )
-    else:
-        st.info("No topic distribution data available. Make sure topics have been loaded to the database.")
-    
-    st.divider()
-    
-    # Topics over time
-    st.subheader("📅 Topics Over Time")
-    col1, col2 = st.columns([1, 4])
-    
-    with col1:
-        # Get available topic IDs
-        available_topics = []
-        if topic_dist_data and topic_dist_data.get('data'):
-            df_topics_temp = pd.DataFrame(topic_dist_data['data'])
-            df_topics_temp = df_topics_temp[df_topics_temp['topic_id'] != -1]
-            available_topics = sorted(df_topics_temp['topic_id'].tolist())
-        
-        selected_topic_id = st.selectbox(
-            "Select Topic",
-            options=[None] + available_topics,
-            format_func=lambda x: f"All Topics" if x is None else f"Topic {x}",
-            key="topic_time_selector",
-            help="Select a specific topic to analyze its distribution over time, or view all topics together"
-        )
-        
-        granularity = st.selectbox(
-            "Time Granularity",
-            options=["day", "week", "month", "year"],
-            index=2,
-            key="topic_time_granularity",
-            help="Time period grouping for the time series chart (day, week, month, or year)"
-        )
-        
-        # Date range filter
-        st.markdown("**Date Range** (optional)")
-        date_from = st.date_input("From", value=None, key="topic_date_from")
-        date_to = st.date_input("To", value=None, key="topic_date_to")
-    
-    with col2:
-        topics_time_data = fetch_topics_over_time(
-            topic_id=selected_topic_id,
-            country=selected_country,
-            granularity=granularity,
-            date_from=str(date_from) if date_from else None,
-            date_to=str(date_to) if date_to else None
-        )
-        
-        if topics_time_data and topics_time_data.get('data'):
-            df_time = pd.DataFrame(topics_time_data['data'])
-            df_time['date'] = pd.to_datetime(df_time['date'], errors='coerce')
-            df_time = df_time.sort_values('date')
-            
-            if selected_topic_id is None:
-                # Show all topics as separate lines
-                fig = px.line(
-                    df_time,
-                    x='date',
-                    y='count',
-                    color='topic_id',
-                    markers=True,
-                    title=f"All Topics Over Time ({granularity.capitalize()})"
-                )
-                fig.update_traces(
-                    line=dict(width=2),
-                    marker=dict(size=6)
-                )
-                fig.update_layout(
-                    legend=dict(
-                        orientation="v",
-                        yanchor="top",
-                        y=1,
-                        xanchor="left",
-                        x=1.02
-                    )
-                )
-            else:
-                # Show single topic
-                df_time_single = df_time[df_time['topic_id'] == selected_topic_id]
-                df_time_single = df_time_single.sort_values('date')
-                fig = px.line(
-                    df_time_single,
-                    x='date',
-                    y='count',
-                    markers=True,
-                    title=f"Topic {selected_topic_id} Over Time ({granularity.capitalize()})"
-                )
-                fig.update_traces(
-                    line=dict(width=3, color='#1f77b4'),
-                    marker=dict(size=8)
-                )
-            
-            fig.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Number of Articles",
-                height=500,
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Summary statistics
-            if selected_topic_id is not None:
-                st.markdown("#### Topic Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Articles", f"{df_time_single['count'].sum():,}")
-                with col2:
-                    st.metric("Peak Month", df_time_single.loc[df_time_single['count'].idxmax(), 'date'].strftime('%Y-%m') if len(df_time_single) > 0 else "N/A")
-                with col3:
-                    st.metric("Peak Count", f"{df_time_single['count'].max():,}" if len(df_time_single) > 0 else "N/A")
-        else:
-            st.info("No topic time series data available.")
 
+    st.divider()
 
 def show_country_page():
     """Show country-specific analysis page."""
     st.markdown('<h1 class="main-header">Countries</h1>', unsafe_allow_html=True)
     
     # Country selector
-    default_country = st.session_state.get("quick_country", "denmark")
+    default_country = st.session_state.get("quick_country")
+    country_options = [None, "denmark", "sweden", "norway", "finland"]
+    country_labels = {
+        None: "All Countries",
+        "denmark": "Denmark",
+        "sweden": "Sweden",
+        "norway": "Norway",
+        "finland": "Finland",
+    }
     country = st.selectbox(
         "Select Country",
-        options=["denmark", "sweden", "norway", "finland"],
-        index=["denmark", "sweden", "norway", "finland"].index(default_country) if default_country in ["denmark", "sweden", "norway", "finland"] else 0,
-        format_func=lambda x: x.capitalize(),
-        help="Select a Nordic country to view country-specific analytics and statistics"
+        options=country_options,
+        index=country_options.index(default_country) if default_country in country_options else 0,
+        format_func=lambda x: country_labels.get(x, "All Countries"),
+        help="Select a Nordic country or view all countries"
     )
     st.session_state["quick_country"] = country
     
     st.divider()
     
     # All outlets for country
-    st.subheader(f"Outlets in {country.capitalize()}")
+    heading = "Outlets in All Countries" if not country else f"Outlets in {country.capitalize()}"
+    st.subheader(heading)
     outlets_data = fetch_top_outlets(country=country, limit=1000)  # Get all outlets
     
     if outlets_data and outlets_data.get('data'):
         df_outlets = pd.DataFrame(outlets_data['data'])
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            fig = px.bar(
-                df_outlets,
-                x='count',
-                y='domain',
-                orientation='h',
-                color='partisan',
-                color_discrete_map={
-                    'Right': '#0066CC',   # blue
-                    'Left': '#DC143C',    # red
-                    'Other': '#2ca02c'     # green
-                },
-                text='count',
-                title=f"Outlets by Article Count"
-            )
-            fig.update_traces(
-                texttemplate='%{text:,}',
-                textposition='outside',
-                hovertemplate='<b>%{y}</b><br>Articles: %{x:,}<br>Partisan: %{customdata}<extra></extra>',
-                customdata=df_outlets['partisan']
-            )
-            # Adjust height based on number of outlets
-            num_outlets = len(df_outlets)
-            chart_height = max(400, min(800, 30 * num_outlets + 100))  # Dynamic height, max 800px
-            
-            fig.update_layout(
-                xaxis_title="Number of Articles",
-                yaxis_title="Outlet",
-                height=chart_height,
-                yaxis={'categoryorder': 'total ascending'},
-                showlegend=True
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.dataframe(
-                df_outlets[['domain', 'outlet_name', 'partisan', 'count']].style.format({'count': '{:,}'}),
-                use_container_width=True,
-                hide_index=True
-            )
+        st.dataframe(
+            df_outlets[['domain', 'outlet_name', 'partisan', 'count']].style.format({'count': '{:,}'}),
+            use_container_width=True,
+            hide_index=True
+        )
     
     # Articles over time for country
-    st.subheader(f"Articles Over Time - {country.capitalize()}")
+    over_time_title = "Articles Over Time - All Countries" if not country else f"Articles Over Time - {country.capitalize()}"
+    st.subheader(over_time_title)
     
-    # View type selector
+    if not country:
+        col1, col2 = st.columns(2)
+        with col1:
+            granularity = st.selectbox(
+                "Time Granularity",
+                options=["Year", "Month", "Week"],
+                index=0,
+                key="country_granularity_all",
+                help="Time period grouping for the time series chart (year, month, or week)"
+            )
+        with col2:
+            partisan_filter = st.selectbox(
+                "Filter by Partisan",
+                options=[None, "Right", "Left", "Other"],
+                format_func=lambda x: "All" if x is None else x,
+                key="country_partisan_all",
+                help="Political orientation of the media outlet (self-identified or classified)"
+            )
+
+        fig = go.Figure()
+        countries = ["denmark", "sweden", "norway", "finland"]
+        colors = {
+            'denmark': '#C8102E',
+            'sweden': '#FECC00',
+            'norway': '#87CEEB',
+            'finland': '#003580'
+        }
+
+        for ctry in countries:
+            time_data = fetch_articles_over_time(
+                country=ctry,
+                partisan=partisan_filter,
+                granularity=granularity.lower()
+            )
+            if time_data and time_data.get('data'):
+                df_time = pd.DataFrame(time_data['data'])
+                df_time['date'] = pd.to_datetime(df_time['date'], errors='coerce')
+                df_time = df_time.sort_values('date')
+                fig.add_trace(go.Scatter(
+                    x=df_time['date'],
+                    y=df_time['count'],
+                    mode='lines+markers',
+                    name=ctry.capitalize(),
+                    line=dict(color=colors.get(ctry, '#1f77b4'), width=2),
+                    marker=dict(size=6),
+                    hovertemplate=f"<b>{ctry.capitalize()}</b><br>Date: %{{x}}<br>Articles: %{{y:,}}<extra></extra>"
+                ))
+
+        fig.update_layout(
+            title=f"Articles Over Time by Country ({granularity})",
+            xaxis_title="Date",
+            yaxis_title="Number of Articles",
+            height=450,
+            hovermode='x unified'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        return
+
+    # View type selector (single-country)
     view_type = st.radio(
         "View",
         options=["Total Count", "Separate Outlets", "Partisan Accumulated"],
@@ -1703,14 +1459,13 @@ def show_country_page():
     with col1:
         granularity = st.selectbox(
             "Time Granularity",
-            options=["year", "month", "week"],
-            index=1,
+            options=["Year", "Month", "Week"],
+            index=0,
             key="country_granularity",
             help="Time period grouping for the time series chart (year, month, or week)"
         )
     with col2:
         if view_type == "Separate Outlets":
-            # Get top outlets for selection
             outlets_list = fetch_top_outlets(country=country, limit=20)
             if outlets_list and outlets_list.get('data'):
                 outlet_options = [o['domain'] for o in outlets_list['data']]
@@ -1723,7 +1478,7 @@ def show_country_page():
                 )
             else:
                 selected_outlets = []
-            partisan_filter = None  # Not used in this view
+            partisan_filter = None
         else:
             partisan_filter = st.selectbox(
                 "Filter by Partisan",
@@ -1732,14 +1487,14 @@ def show_country_page():
                 key="country_partisan",
                 help="Political orientation of the media outlet (self-identified or classified)"
             )
-            selected_outlets = []  # Not used in other views
+            selected_outlets = []
     
     # Fetch and display data based on view type
     if view_type == "Total Count":
         time_data = fetch_articles_over_time(
             country=country,
             partisan=partisan_filter,
-            granularity=granularity
+            granularity=granularity.lower()
         )
         
         if time_data and time_data.get('data'):
@@ -1747,12 +1502,13 @@ def show_country_page():
             df_time['date'] = pd.to_datetime(df_time['date'], errors='coerce')
             df_time = df_time.sort_values('date')
             
+            title_country = country.capitalize() if country else "All Countries"
             fig = px.line(
                 df_time,
                 x='date',
                 y='count',
                 markers=True,
-                title=f"Articles Over Time - {country.capitalize()} (Total Count)"
+                title=f"Articles Over Time - {title_country} (Total Count)"
             )
             fig.update_traces(
                 line=dict(width=3, color='#1f77b4'),
@@ -1768,11 +1524,13 @@ def show_country_page():
             st.plotly_chart(fig, use_container_width=True)
     
     elif view_type == "Separate Outlets":
-        if selected_outlets:
+        if not country:
+            st.info("Select a country to compare separate outlets.")
+        elif selected_outlets:
             outlet_time_data = fetch_articles_over_time_by_outlet(
                 country=country,
                 outlets=selected_outlets,
-                granularity=granularity
+                granularity=granularity.lower()
             )
             
             if outlet_time_data and outlet_time_data.get('data'):
@@ -1819,7 +1577,7 @@ def show_country_page():
             time_data = fetch_articles_over_time(
                 country=country,
                 partisan=partisan,
-                granularity=granularity
+                granularity=granularity.lower()
             )
             
             if time_data and time_data.get('data'):
@@ -1837,8 +1595,9 @@ def show_country_page():
                     hovertemplate=f'<b>{partisan}</b><br>Date: %{{x}}<br>Articles: %{{y:,}}<extra></extra>'
                 ))
         
+        title_country = country.capitalize() if country else "All Countries"
         fig.update_layout(
-            title=f"Articles Over Time - {country.capitalize()} (By Partisan)",
+            title=f"Articles Over Time - {title_country} (By Partisan)",
             xaxis_title="Date",
             yaxis_title="Number of Articles",
             height=400,
@@ -1892,7 +1651,7 @@ def show_country_page():
                     'neutral': '#808080',
                     'negative': '#d62728'
                 },
-                title=f"Sentiment Distribution - {country.capitalize()}"
+                title=f"Sentiment Distribution - {country.capitalize() if country else 'All Countries'}"
             )
             fig.update_traces(
                 textposition='inside',
@@ -2297,25 +2056,24 @@ def show_content_engagement_page():
 
 def show_get_access_page():
     """Show contact form for data access requests."""
-    st.markdown('<h1 class="main-header">Get Access</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Get Access - Send Us a Message</h1>', unsafe_allow_html=True)
     st.markdown(
-        "Request data access or specific extracts from the NAMO collection. "
-        "This will open your email client with a prepared message."
+        "Please describe your research purpose, specify the datasets/variables you are requesting, and "
+        "outline how you intend to use the data (e.g., methodology, scope, and anticipated outputs).",
+        unsafe_allow_html=True,
     )
 
     with st.form("access_request"):
-        tabs = st.tabs(["Name", "Email", "Request"])
-        with tabs[0]:
-            name = st.text_input("Full name", placeholder="Your name")
-        with tabs[1]:
-            email = st.text_input("Email address", placeholder="name@organization.org")
-        with tabs[2]:
-            request = st.text_area(
-                "Request details",
-                height=220,
-                placeholder="Describe the data you need (countries, outlets, date ranges, or full dataset).",
-            )
-        submitted = st.form_submit_button("Prepare request")
+        st.markdown("<div class='section-title'>Contact</div>", unsafe_allow_html=True)
+
+        name = st.text_input("Name", placeholder="Your full name")
+        email = st.text_input("Email", placeholder="name@organization.org")
+        request = st.text_area(
+            "Message",
+            height=200,
+            placeholder="Describe the data you need (countries, outlets, date ranges, or full dataset).",
+        )
+        submitted = st.form_submit_button("Submit")
 
     if submitted:
         missing = []
@@ -2330,57 +2088,199 @@ def show_get_access_page():
             st.error(f"Please provide {', '.join(missing)}.")
             return
 
-        mailto_link = build_access_mailto(name=name, email=email, request=request)
-        st.success("Ready to send. This is a placeholder and will open your email client.")
-        st.markdown(f"[Send request]({mailto_link})")
+        if send_access_request(name=name, email=email, message=request):
+            st.success("Request sent. We will get back to you soon.")
+
+
+def show_media_page():
+    """Show media directory page."""
+    st.markdown('<h1 class="main-header">Media Directory</h1>', unsafe_allow_html=True)
+    st.markdown(
+        "<div class='subtle'>A searchable directory of alternative media outlets across the Nordics.</div>",
+        unsafe_allow_html=True,
+    )
+
+    outlets_data = fetch_top_outlets(limit=1000)
+    outlets = outlets_data.get("data", []) if outlets_data else []
+
+    total_outlets = len(outlets)
+    countries = {o.get("country") for o in outlets if o.get("country")}
+    total_articles = sum(o.get("count", 0) for o in outlets)
+    avg_articles = int(total_articles / total_outlets) if total_outlets else 0
+
+    stat_cols = st.columns(4)
+    stat_values = [
+        ("Total Media", f"{total_outlets:,}"),
+        ("Countries Represented", f"{len(countries)}"),
+        ("Total Articles", f"{total_articles:,}"),
+        ("Avg Articles / Media", f"{avg_articles:,}"),
+    ]
+    for col, (label, value) in zip(stat_cols, stat_values):
+        with col:
+            st.markdown(
+                f"""
+                <div class="stat-card">
+                    <div class="label">{label}</div>
+                    <div class="value">{value}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+    query = st.text_input("Search media by name", placeholder="Type a media name...")
+    filtered = filter_outlets(outlets, query)
+
+    selected_domain = None
+    try:
+        params = st.query_params
+        selected_domain = params.get("media")
+    except Exception:
+        params = st.experimental_get_query_params()
+        selected_list = params.get("media")
+        selected_domain = selected_list[0] if selected_list else None
+
+    if selected_domain:
+        profile = fetch_outlet_profile(selected_domain)
+        if profile:
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='section-title'>{profile.get('outlet_name') or profile.get('domain')}</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"<div class='subtle'>{profile.get('country', 'Unknown country')} · "
+                f"{profile.get('total_articles', 0):,} articles</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<div class='subtle' style='margin-top:6px;'>Profile details coming soon.</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("Back to Media", use_container_width=False):
+                try:
+                    st.query_params.pop("media", None)
+                    st.rerun()
+                except Exception:
+                    st.experimental_set_query_params(page="Media")
+            st.divider()
+
+    st.caption(f"Showing {min(len(filtered), len(outlets))} of {len(outlets)} media outlets")
+
+    if not filtered:
+        st.info("No media outlets match your search.")
+        return
+
+    cols = st.columns(3)
+    for idx, outlet in enumerate(filtered):
+        col = cols[idx % 3]
+        name = outlet.get("outlet_name") or outlet.get("domain") or "Unknown outlet"
+        country = outlet.get("country") or outlet.get("country_code") or "Unknown"
+        count = outlet.get("count", 0)
+        with col:
+            st.markdown(
+                f"""
+                <div class="media-card">
+                    <div>
+                        <h3>{name}</h3>
+                        <div class="media-meta">{country}</div>
+                        <div class="media-count">{count:,} articles</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button("View Media", key=f"media_{idx}", use_container_width=True):
+                try:
+                    st.query_params["page"] = "Media"
+                    st.query_params["media"] = outlet.get("domain") or ""
+                    st.rerun()
+                except Exception:
+                    st.experimental_set_query_params(page="Media", media=outlet.get("domain"))
+
+
+def show_about_page():
+    """Show about page for the observatory."""
+    st.markdown('<h1 class="main-header">About Nordicamo</h1>', unsafe_allow_html=True)
+    st.markdown(
+        "<div class='subtle'>Nordic Alternative Media Observatory (Nordicamo) is a comparative platform for "
+        "studying alternative news media across Denmark, Finland, Norway, and Sweden.</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("#### Aim of the Platform")
+    st.markdown(
+        "Nordicamo supports research, journalism, and teaching by providing structured access to "
+        "alternative news media corpora. The platform blends scalable computational analysis with "
+        "qualitative interpretation, enabling cross-national comparison and hypothesis generation."
+    )
+
+    st.markdown("#### Data Collection")
+    st.markdown(
+        "Outlets are selected based on stable publication patterns and clear alternative positioning. "
+        "A seed list of outlet domains is compiled, and article links are collected from site structures "
+        "and sitemaps when available. Scraping respects robots.txt guidance, rate limits, and "
+        "site stability constraints. Content is extracted with Trafilatura and cleaned of boilerplate."
+    )
+
+    st.markdown("#### Data Processing")
+    st.markdown(
+        "Collected articles are normalized into a common schema (date, outlet, domain, country, and text). "
+        "Quality checks include sampling for content validity and date accuracy. Optional lightweight "
+        "metadata tags (e.g., partisan orientation) are derived from public self-descriptions and "
+        "manual checks for context."
+    )
+
+    st.markdown("#### Analytical Approach")
+    st.markdown(
+        "The observatory emphasizes descriptive statistics, time-series trends, topic exploration, "
+        "and outlet-level comparisons. Computational outputs are treated as starting points for deeper "
+        "qualitative interpretation, not definitive endpoints."
+    )
+
+    st.markdown("#### Ethics")
+    st.markdown(
+        "Nordicamo handles politically sensitive content. Data collection prioritizes contextual "
+        "integrity, transparency, and minimization. Scraping practices are documented, and the platform "
+        "is designed to support responsible, reflexive interpretation."
+    )
 
 
 def main():
     """Main application."""
-    st.markdown('<div class="topbar">', unsafe_allow_html=True)
-    top_cols = st.columns([2.6, 7.4])
-    with top_cols[0]:
-        logo_to_use = get_trimmed_logo()
-        if logo_to_use and logo_to_use.exists():
-            st.image(str(logo_to_use), width=240, output_format="PNG")
-        else:
-            st.markdown(
-                '<div style="font-size:1.4rem; font-weight:700; color:#1f77b4;">NAMO</div>',
-                unsafe_allow_html=True,
-            )
-    with top_cols[1]:
-        nav_cols = st.columns(4)
-        nav_items = [
-            ("Platform", "Platform"),
-            ("Countries", "Countries"),
-            ("Dataset", "Dataset"),
-            ("Get Access", "Get Access"),
-        ]
-        current_page = st.session_state.get("page", "Platform")
-        for col, (label, page_key) in zip(nav_cols, nav_items):
-            with col:
-                is_active = current_page == page_key
-                if st.button(
-                    label,
-                    use_container_width=True,
-                    key=f"nav_{page_key}",
-                    type="primary" if is_active else "secondary",
-                ):
-                    st.session_state["page"] = page_key
-                    if page_key != "Countries":
-                        st.session_state["quick_country"] = None
-    st.markdown('</div>', unsafe_allow_html=True)
+    page = None
+    try:
+        params = st.query_params
+        page = params.get("page")
+    except Exception:
+        params = st.experimental_get_query_params()
+        page_list = params.get("page")
+        page = page_list[0] if page_list else None
 
-    page = st.session_state.get("page", "Platform")
-    
+    allowed_pages = {"Platform", "Countries", "Media", "About", "Get Access"}
+    if page in allowed_pages:
+        st.session_state["page"] = page
+
+    current_page = st.session_state.get("page", "Platform")
+    if current_page not in allowed_pages:
+        current_page = "Platform"
+        st.session_state["page"] = current_page
+
+    if current_page != "Countries":
+        st.session_state["quick_country"] = None
+
+    st.markdown(build_topbar_html(current_page), unsafe_allow_html=True)
+
     # Route to page
-    if page == "Platform":
+    if current_page == "Platform":
         show_overview_page()
-    elif page == "Countries":
+    elif current_page == "Countries":
         show_country_page()
-    elif page == "Dataset":
-        show_content_engagement_page()
-    elif page == "Get Access":
+    elif current_page == "Media":
+        show_media_page()
+    elif current_page == "About":
+        show_about_page()
+    elif current_page == "Get Access":
         show_get_access_page()
 
 

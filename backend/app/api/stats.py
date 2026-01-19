@@ -1,6 +1,6 @@
 """Statistics API endpoints."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -20,7 +20,8 @@ from app.schemas.stats import (
     SentimentItem,
     TopEntitiesResponse,
     EntityStatisticsResponse,
-    EntityItem
+    EntityItem,
+    OutletProfileResponse
 )
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
@@ -93,7 +94,7 @@ async def get_articles_over_time(
 async def get_top_outlets(
     country: Optional[str] = Query(None, description="Filter by country"),
     partisan: Optional[str] = Query(None, description="Filter by partisan"),
-    limit: int = Query(10, description="Number of outlets to return", ge=1, le=100),
+    limit: int = Query(10, description="Number of outlets to return", ge=1, le=1000),
     db: Session = Depends(get_db)
 ):
     """Get top outlets by article count."""
@@ -111,6 +112,19 @@ async def get_top_outlets(
         },
         data=[TopOutletItem(**item) for item in data]
     )
+
+
+@router.get("/outlet-profile", response_model=OutletProfileResponse)
+async def get_outlet_profile(
+    domain: str = Query(..., description="Outlet domain"),
+    db: Session = Depends(get_db)
+):
+    """Get outlet profile summary by domain."""
+    service = StatsService(db)
+    data = service.get_outlet_profile(domain=domain)
+    if not data:
+        raise HTTPException(status_code=404, detail="Outlet not found")
+    return OutletProfileResponse(**data)
 
 
 @router.get("/categories", response_model=CategoriesResponse)
@@ -239,4 +253,3 @@ async def get_comparative_metrics(db: Session = Depends(get_db)):
     """Get comparative metrics across countries (concentration, partisan balance, etc.)."""
     service = StatsService(db)
     return service.get_comparative_metrics()
-
