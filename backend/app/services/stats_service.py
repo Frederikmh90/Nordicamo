@@ -2,7 +2,7 @@
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
 
@@ -157,6 +157,8 @@ class StatsService:
         self,
         country: Optional[str] = None,
         partisan: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
         limit: int = 10
     ) -> List[Dict]:
         """Get top outlets by article count."""
@@ -170,19 +172,37 @@ class StatsService:
         if partisan:
             conditions.append("partisan = :partisan")
             params["partisan"] = partisan
+
+        if date_from:
+            conditions.append("date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            conditions.append("date <= :date_to")
+            params["date_to"] = date_to
         
         where_clause = " AND ".join(conditions)
         
         query = text(f"""
-            SELECT 
-                domain,
-                actor as outlet_name,
-                country,
-                partisan,
-                COUNT(*) as count
-            FROM clean_articles
-            WHERE {where_clause}
-            GROUP BY domain, actor, country, partisan
+            WITH outlet_counts AS (
+                SELECT
+                    domain,
+                    actor as outlet_name,
+                    country,
+                    partisan,
+                    COUNT(*) as count
+                FROM clean_articles
+                WHERE {where_clause}
+                GROUP BY domain, actor, country, partisan
+            ),
+            ranked AS (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (PARTITION BY domain ORDER BY count DESC NULLS LAST) as rn
+                FROM outlet_counts
+            )
+            SELECT domain, outlet_name, country, partisan, count
+            FROM ranked
+            WHERE rn = 1
             ORDER BY count DESC
             LIMIT :limit
         """)
@@ -328,6 +348,116 @@ class StatsService:
                 "count": row[1],
                 "avg_score": float(row[2]) if row[2] else 0.0
             }
+            for row in results
+        ]
+
+    def get_categories_over_time(
+        self,
+        country: Optional[str] = None,
+        partisan: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        granularity: str = "month",
+        limit: int = 6,
+    ) -> List[Dict]:
+        """Get category trends over time."""
+        if granularity == "year":
+            date_format = "TO_CHAR(date, 'YYYY')"
+            group_by = "TO_CHAR(date, 'YYYY')"
+        elif granularity == "week":
+            date_format = "TO_CHAR(date, 'IYYY-IW')"
+            group_by = "TO_CHAR(date, 'IYYY-IW')"
+        else:
+            date_format = "TO_CHAR(date, 'YYYY-MM')"
+            group_by = "TO_CHAR(date, 'YYYY-MM')"
+
+        conditions = ["date IS NOT NULL"]
+        params: Dict[str, Any] = {"limit": limit}
+
+        if country:
+            conditions.append("country = :country")
+            params["country"] = country
+        if partisan:
+            conditions.append("partisan = :partisan")
+            params["partisan"] = partisan
+        if date_from:
+            conditions.append("date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            conditions.append("date <= :date_to")
+            params["date_to"] = date_to
+
+        where_clause = " AND ".join(conditions)
+
+        check_query = text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name='articles' AND column_name='category'
+        """)
+        has_category_column = self.db.execute(check_query).fetchone() is not None
+
+        if has_category_column:
+            top_categories_query = text(f"""
+                SELECT category, COUNT(*) as count
+                FROM clean_articles
+                WHERE {where_clause} AND category IS NOT NULL
+                GROUP BY category
+                ORDER BY count DESC
+                LIMIT :limit
+            """)
+            top_rows = self.db.execute(top_categories_query, params).fetchall()
+            categories = [row[0] for row in top_rows if row[0]]
+            if not categories:
+                return []
+
+            params["categories"] = categories
+            query = text(f"""
+                SELECT
+                    {date_format} as date,
+                    category,
+                    COUNT(*) as count
+                FROM clean_articles
+                WHERE {where_clause} AND category = ANY(:categories)
+                GROUP BY {group_by}, category
+                ORDER BY date
+            """)
+        else:
+            top_categories_query = text(f"""
+                SELECT category, COUNT(*) as count
+                FROM clean_articles,
+                     jsonb_array_elements_text(categories) as category
+                WHERE {where_clause} AND categories IS NOT NULL
+                GROUP BY category
+                ORDER BY count DESC
+                LIMIT :limit
+            """)
+            top_rows = self.db.execute(top_categories_query, params).fetchall()
+            categories = [row[0] for row in top_rows if row[0]]
+            if not categories:
+                return []
+
+            params["categories"] = categories
+            query = text(f"""
+                WITH expanded AS (
+                    SELECT
+                        {date_format} as date,
+                        jsonb_array_elements_text(categories) as category
+                    FROM clean_articles
+                    WHERE {where_clause} AND categories IS NOT NULL
+                )
+                SELECT
+                    date,
+                    category,
+                    COUNT(*) as count
+                FROM expanded
+                WHERE category = ANY(:categories)
+                GROUP BY date, category
+                ORDER BY date
+            """)
+
+        results = self.db.execute(query, params).fetchall()
+        return [
+            {"date": str(row[0]), "category": row[1], "count": row[2]}
             for row in results
         ]
     

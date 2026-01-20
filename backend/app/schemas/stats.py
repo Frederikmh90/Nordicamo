@@ -1,7 +1,7 @@
 """Pydantic schemas for statistics endpoints."""
 
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from datetime import date
 
 
@@ -80,6 +80,19 @@ class CategoriesResponse(BaseModel):
     """Categories distribution response."""
     filters: Dict[str, Optional[str]]
     data: List[CategoryItem]
+
+
+class CategoryOverTimeItem(BaseModel):
+    """Category over time item."""
+    date: str
+    category: str
+    count: int
+
+
+class CategoriesOverTimeResponse(BaseModel):
+    """Categories over time response."""
+    filters: Dict[str, Optional[Union[str, int]]]
+    data: List[CategoryOverTimeItem]
 
 
 class SentimentItem(BaseModel):

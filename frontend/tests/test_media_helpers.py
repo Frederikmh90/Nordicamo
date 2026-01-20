@@ -22,6 +22,20 @@ class TestMediaHelpers(unittest.TestCase):
         filtered = filter_outlets(outlets, "")
         self.assertEqual(filtered, outlets)
 
+    def test_consolidate_outlets_by_domain(self):
+        from media_helpers import consolidate_outlets
+
+        outlets = [
+            {"domain": "newsvoice.se", "outlet_name": "NewsVoice", "partisan": None, "count": 10},
+            {"domain": "newsvoice.se", "outlet_name": None, "partisan": "Right", "count": 5},
+            {"domain": "example.com", "outlet_name": "Example", "partisan": "Left", "count": 3},
+        ]
+        consolidated = consolidate_outlets(outlets)
+        by_domain = {o["domain"]: o for o in consolidated}
+        self.assertEqual(by_domain["newsvoice.se"]["count"], 15)
+        self.assertEqual(by_domain["newsvoice.se"]["outlet_name"], "NewsVoice")
+        self.assertEqual(by_domain["newsvoice.se"]["partisan"], "Right")
+
 
 if __name__ == "__main__":
     unittest.main()

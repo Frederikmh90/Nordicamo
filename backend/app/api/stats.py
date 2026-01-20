@@ -15,8 +15,10 @@ from app.schemas.stats import (
     TimeSeriesItem,
     TopOutletItem,
     CategoriesResponse,
+    CategoriesOverTimeResponse,
     SentimentResponse,
     CategoryItem,
+    CategoryOverTimeItem,
     SentimentItem,
     TopEntitiesResponse,
     EntityStatisticsResponse,
@@ -94,6 +96,8 @@ async def get_articles_over_time(
 async def get_top_outlets(
     country: Optional[str] = Query(None, description="Filter by country"),
     partisan: Optional[str] = Query(None, description="Filter by partisan"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(10, description="Number of outlets to return", ge=1, le=1000),
     db: Session = Depends(get_db)
 ):
@@ -102,13 +106,17 @@ async def get_top_outlets(
     data = service.get_top_outlets(
         country=country,
         partisan=partisan,
+        date_from=date_from,
+        date_to=date_to,
         limit=limit
     )
     
     return TopOutletsResponse(
         filters={
             "country": country,
-            "partisan": partisan
+            "partisan": partisan,
+            "date_from": date_from,
+            "date_to": date_to
         },
         data=[TopOutletItem(**item) for item in data]
     )
@@ -146,6 +154,40 @@ async def get_categories(
             "partisan": partisan
         },
         data=[CategoryItem(**item) for item in data]
+    )
+
+
+@router.get("/categories/over-time", response_model=CategoriesOverTimeResponse)
+async def get_categories_over_time(
+    country: Optional[str] = Query(None, description="Filter by country"),
+    partisan: Optional[str] = Query(None, description="Filter by partisan"),
+    granularity: str = Query("month", description="Time granularity: year, month, week"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(6, description="Number of categories to return", ge=1, le=20),
+    db: Session = Depends(get_db)
+):
+    """Get category trends over time."""
+    service = StatsService(db)
+    data = service.get_categories_over_time(
+        country=country,
+        partisan=partisan,
+        date_from=date_from,
+        date_to=date_to,
+        granularity=granularity,
+        limit=limit,
+    )
+
+    return CategoriesOverTimeResponse(
+        filters={
+            "country": country,
+            "partisan": partisan,
+            "granularity": granularity,
+            "date_from": date_from,
+            "date_to": date_to,
+            "limit": limit,
+        },
+        data=[CategoryOverTimeItem(**item) for item in data]
     )
 
 
