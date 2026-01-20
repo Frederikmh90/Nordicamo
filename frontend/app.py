@@ -162,6 +162,7 @@ st.markdown("""
         --color-accent: #1f77b4;
         --color-accent-strong: #155d8f;
         --color-logo: #8c342f;
+        --color-slider: #8c342f;
         --color-code-bg: #f5f7f9;
         --color-code-border: #d8dee9;
         --color-topbar: rgba(248, 251, 248, 0.95);
@@ -257,6 +258,9 @@ st.markdown("""
         border-bottom: 1px solid var(--color-border);
         backdrop-filter: blur(10px);
         padding: 12px 0;
+    }
+    .stMainBlockContainer {
+        padding-top: 96px !important;
     }
     .topbar-inner {
         max-width: 1200px;
@@ -388,23 +392,40 @@ st.markdown("""
     }
 
     div[data-baseweb="slider"] [role="slider"] {
-        background-color: var(--color-logo) !important;
-        border-color: var(--color-logo) !important;
+        background-color: var(--color-slider) !important;
+        border-color: var(--color-slider) !important;
     }
     div[data-baseweb="slider"] > div > div > div {
-        background-color: var(--color-logo) !important;
+        background-color: var(--color-slider) !important;
     }
     div[data-baseweb="slider"] [data-testid="stTickBarTick"] {
-        color: var(--color-logo) !important;
+        color: #0154a3 !important;
         font-size: 0.9rem !important;
         font-weight: 600;
     }
     div[data-baseweb="slider"] [data-testid="stTickBarTickLabel"] {
-        color: var(--color-logo) !important;
+        color: #0154a3 !important;
         font-size: 0.9rem !important;
         font-weight: 600;
     }
-    div[data-baseweb="slider"] [role="tooltip"] {
+    div[data-baseweb="slider"] [data-testid="stSliderTickBar"] span {
+        display: none !important;
+    }
+    .stSlider [class*="st-c"] {
+        color: #0154a3 !important;
+        font-size: 0.9rem !important;
+        font-weight: 600;
+    }
+    div[data-baseweb="slider"] [data-testid="stTickBarTickLabel"] + div,
+    div[data-baseweb="slider"] .st-cs.st-ct.st-c8.st-c7.st-as.st-cu.st-cv,
+    div[data-baseweb="slider"] .st-cs.st-ct.st-c8.st-c7.st-cs.st-cu.st-cv,
+    .stSlider [class*="st-c"] {
+        color: #0154a3 !important;
+        font-size: 0.9rem !important;
+        font-weight: 600;
+    }
+    div[data-baseweb="slider"] [role="tooltip"],
+    div[data-baseweb="slider"] [data-testid="stTooltipIcon"] {
         display: none !important;
     }
 
@@ -424,6 +445,48 @@ st.markdown("""
         border: 1px solid var(--color-border);
         border-radius: var(--radius);
         padding: var(--space-3);
+    }
+
+    .affiliation-text {
+        margin-top: 4px;
+    }
+    .about-intro {
+        color: #111111;
+        margin-bottom: 18px;
+    }
+    .about-grid-spacer {
+        height: 12px;
+    }
+    .about-card {
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 14px 16px;
+        box-shadow: var(--shadow-soft);
+        margin-bottom: 12px;
+    }
+    .about-card:empty {
+        display: none;
+    }
+    .about-card h4 {
+        margin-top: 0;
+        margin-bottom: 8px;
+    }
+    .about-card p {
+        margin: 0;
+    }
+    .about-card-spacer {
+        height: 10px;
+    }
+    .affiliation-row {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        margin-top: 12px;
+    }
+    .affiliation-logo {
+        width: 120px;
+        height: auto;
     }
 
     /* Tables */
@@ -1106,8 +1169,7 @@ def show_overview_page():
                 ))
         
         fig.update_layout(
-            title=f"Articles Over Time by Country ({granularity.capitalize()})",
-            xaxis_title="Date",
+            xaxis_title="Time",
             yaxis_title="Number of Articles",
             height=450,
             hovermode='x unified',
@@ -1119,7 +1181,7 @@ def show_overview_page():
                 x=0.5,
                 font=dict(size=12)
             ),
-            margin=dict(b=50, t=80, l=50, r=50)
+            margin=dict(b=50, t=40, l=50, r=50)
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
@@ -1431,7 +1493,7 @@ def show_topic_analysis_page():
 
 def show_country_page():
     """Show country-specific analysis page."""
-    st.markdown('<h1 class="main-header">Explore the dataset</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">First Stop: The Overview</h1>', unsafe_allow_html=True)
     st.markdown(
         "<div class='subtle'>The Explorer provides a high-level overview of the dataset. "
         "Start with all countries for a broad comparison, or select a country to see outlets and "
@@ -1451,7 +1513,7 @@ def show_country_page():
         "finland": "Finland",
     }
     country = st.selectbox(
-        "Select Country",
+        "Scope",
         options=country_options,
         index=country_options.index(default_country) if default_country in country_options else 0,
         format_func=lambda x: country_labels.get(x, "All Countries"),
@@ -1471,7 +1533,7 @@ def show_country_page():
     tables_col1, tables_col2 = st.columns(2)
     with tables_col1:
         # All outlets for country
-        heading = "Outlets in All Countries" if not country else f"Outlets in {country.capitalize()}"
+        heading = "Outlets (All Countries)" if not country else f"Outlets ({country.capitalize()})"
         st.subheader(heading)
         outlets_data = fetch_top_outlets(country=country, limit=1000)  # Get all outlets
 
@@ -1505,8 +1567,9 @@ def show_country_page():
             )
 
     with tables_col2:
+        category_heading = "News Categories (All Countries)" if not country else f"News Categories ({country.capitalize()})"
         st.subheader(
-            "News Categories",
+            category_heading,
             help="Content has been classified by an LLM to predefined news categories.",
         )
         categories_data = fetch_categories(country=country, partisan=None)
@@ -1582,8 +1645,10 @@ def show_country_page():
 
         with partisan_col:
             st.subheader("Partisanship Mix by Country")
-            st.caption("Share of total articles by partisan group within each country.")
-            st.caption("Higher shares indicate stronger dominance of a partisan orientation.")
+            st.caption(
+                "Share of total articles by partisan group within each country. "
+                "Higher shares indicate stronger dominance of a partisan orientation."
+            )
             partisan_rows = []
             for ctry in ["denmark", "sweden", "norway", "finland"]:
                 outlets_for_country = fetch_top_outlets(country=ctry, limit=1000)
@@ -1622,12 +1687,14 @@ def show_country_page():
                     height=360,
                     yaxis=dict(range=[0, 100]),
                     barmode="stack",
-                    legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="center", x=0.5),
+                    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
+                    legend_title_text=None,
+                    margin=dict(b=80),
                 )
                 st.plotly_chart(fig_partisan, use_container_width=True)
 
     # Articles over time for country
-    over_time_title = "Articles Over Time - All Countries" if not country else f"Articles Over Time - {country.capitalize()}"
+    over_time_title = "Articles Over Time (All Countries)" if not country else f"Articles Over Time ({country.capitalize()})"
     st.subheader(over_time_title)
 
     partisan_filter = None
@@ -1698,8 +1765,7 @@ def show_country_page():
                 ))
 
         fig.update_layout(
-            title=f"Articles Over Time by Country ({granularity})",
-            xaxis_title="Date",
+            xaxis_title="Time",
             yaxis_title="Number of Articles",
             height=450,
             hovermode='x unified',
@@ -2493,47 +2559,111 @@ def show_about_page():
     """Show about page for the observatory."""
     st.markdown('<h1 class="main-header">About Nordicamo</h1>', unsafe_allow_html=True)
     st.markdown(
-        "<div class='subtle'>Nordic Alternative Media Observatory (Nordicamo) is a comparative platform for "
-        "studying alternative news media across Denmark, Finland, Norway, and Sweden.</div>",
+        "<div class='about-intro'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative "
+        "platform for studying alternative news media across the Nordic countries (Denmark, Finland, Norway, and "
+        "Sweden). Nordicamo supports research, journalism, and teaching by providing structured access to alternative "
+        "news media content. The platform blends scalable computational analysis with possibilities of qualitative "
+        "interpretation, enabling reporting and reserach on cross-national comparison between alternative information "
+        "landscapes.</div>",
         unsafe_allow_html=True,
     )
+    st.markdown("<div class='about-grid-spacer'></div>", unsafe_allow_html=True)
 
-    st.markdown("#### Aim of the Platform")
-    st.markdown(
-        "Nordicamo supports research, journalism, and teaching by providing structured access to "
-        "alternative news media corpora. The platform blends scalable computational analysis with "
-        "qualitative interpretation, enabling cross-national comparison and hypothesis generation."
-    )
+    def _encode_image(path: Path) -> str:
+        if not path.exists():
+            return ""
+        return base64.b64encode(path.read_bytes()).decode("ascii")
 
-    st.markdown("#### Data Collection")
-    st.markdown(
-        "Outlets are selected based on stable publication patterns and clear alternative positioning. "
-        "A seed list of outlet domains is compiled, and article links are collected from site structures "
-        "and sitemaps when available. Scraping respects robots.txt guidance, rate limits, and "
-        "site stability constraints. Content is extracted with Trafilatura and cleaned of boilerplate."
-    )
+    top_left, top_right = st.columns(2, gap="large")
+    with top_left:
+        st.markdown(
+            """
+            <div class="about-card">
+                <h4>Data Collection</h4>
+                <p>Outlets are selected based on stable publication patterns and clear alternative positioning. A seed
+                list of outlet domains is compiled, and article links are collected from site structures and sitemaps
+                when available. Scraping respects robots.txt guidance, rate limits, and site stability constraints.
+                Content is extracted with Trafilatura and cleaned of boilerplate. Media with very low activity in 2026
+                are excluded from the active observatory, while the full archive retains historical ANM primarily active
+                in the 2000s and 2010s.</p>
+                <div class="about-card-spacer"></div>
+                <p>Collected articles are normalized into a common schema (date, outlet, domain, country, and text).
+                Quality checks include sampling for content validity and date accuracy. Optional lightweight metadata
+                tags (e.g., partisan orientation) are derived from public self-descriptions and manual checks for
+                context.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("#### Data Processing")
-    st.markdown(
-        "Collected articles are normalized into a common schema (date, outlet, domain, country, and text). "
-        "Quality checks include sampling for content validity and date accuracy. Optional lightweight "
-        "metadata tags (e.g., partisan orientation) are derived from public self-descriptions and "
-        "manual checks for context."
-    )
+    with top_right:
+        st.markdown(
+            """
+            <div class="about-card">
+                <h4>Analytical Approach</h4>
+                <p>Nordicamo is intentionally descriptive. The platform focuses on high-level patterns in coverage:
+                total output, country distribution, outlet concentration, category mix, and publication trends over
+                time. These summaries are meant to highlight signals and guide deeper qualitative interpretation,
+                rather than produce definitive causal claims (at least in v1.0).</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("#### Analytical Approach")
-    st.markdown(
-        "The observatory emphasizes descriptive statistics, time-series trends, topic exploration, "
-        "and outlet-level comparisons. Computational outputs are treated as starting points for deeper "
-        "qualitative interpretation, not definitive endpoints."
-    )
+    bottom_left, bottom_right = st.columns(2, gap="large")
+    with bottom_left:
+        st.markdown(
+            """
+            <div class="about-card">
+                <h4>Ethics</h4>
+                <p>Nordicamo is designed for research on politically sensitive material and follows clear safeguards to
+                reduce potential harm. Collection is limited to publicly accessible content, respects site policies
+                (including robots.txt/terms where applicable), and uses rate-limiting/backoff to minimize server load.
+                We practice data minimization: we avoid collecting unnecessary personal data and exclude high-risk
+                identifiers where not essential; access to raw data is restricted, logged, and governed by clear
+                retention and deletion practices.</p>
+                <p>We document and version scraping procedures to maintain transparency about what is collected, how it
+                is processed, and what is excluded. Analyses and outputs are reported primarily in aggregate, with
+                careful redaction and quoting rules to reduce risks of amplification, re-identification, or targeting
+                of individuals. Findings are presented as exploratory and contextual, not as judgments about persons or
+                groups. Nordicamo is intended to support responsible research and to avoid contributing to
+                stigmatization, harassment, or misuse.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("#### Ethics")
-    st.markdown(
-        "Nordicamo handles politically sensitive content. Data collection prioritizes contextual "
-        "integrity, transparency, and minimization. Scraping practices are documented, and the platform "
-        "is designed to support responsible, reflexive interpretation."
-    )
+    with bottom_right:
+        alterpublics_logo = Path(__file__).resolve().parent.parent / "graphics" / "Alterpublics_newlogo.png"
+        dml_logo = Path(__file__).resolve().parent.parent / "graphics" / "DML_Logo_nobackground.png"
+        alter_encoded = _encode_image(alterpublics_logo)
+        dml_encoded = _encode_image(dml_logo)
+        alter_img = f"data:image/png;base64,{alter_encoded}" if alter_encoded else ""
+        dml_img = f"data:image/png;base64,{dml_encoded}" if dml_encoded else ""
+        st.markdown(
+            f"""
+            <div class="about-card">
+                <h4>Affiliations</h4>
+                <div class="affiliation-row">
+                    <img class="affiliation-logo" src="{alter_img}" alt="AlterPublics logo"/>
+                    <div class="affiliation-text"><strong>Nordicamo</strong> is part of the European research project
+                    <strong>AlterPublics</strong>, which is based at Roskilde University (Denmark). It studies
+                    alternative media, counterpublics, and disinformation across the Nordic countries (Denmark, Sweden,
+                    Norway, Finland) and Austria and Germany, using big data, network analysis, and interviews to
+                    understand how non-mainstream information environments function and connect with traditional
+                    discourse.</div>
+                </div>
+                <div class="affiliation-row">
+                    <img class="affiliation-logo" src="{dml_img}" alt="Digital Media Lab logo"/>
+                    <div class="affiliation-text"><strong>Digital Media Lab (DML)</strong> hosts this platform. DML is a
+                    digital and physical lab in the Department of Communication and Arts - Roskilde University
+                    supporting students, faculty, and external practitioners who work with digital data and digital
+                    methods.</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def main():
