@@ -1,0 +1,520 @@
+"""API client helpers for the Streamlit frontend."""
+
+from typing import Optional, List
+
+import requests
+import streamlit as st
+
+from config import get_api_base_url
+
+API_BASE_URL = get_api_base_url()
+
+
+@st.cache_data(ttl=300)
+def fetch_overview():
+    """Fetch overview statistics."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/stats/overview", timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching overview: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_enhanced_overview():
+    """Fetch enhanced overview with additional metrics."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/stats/overview/enhanced", timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching enhanced overview: {exc}")
+        return None
+
+
+@st.cache_data(ttl=60)
+def fetch_data_freshness():
+    """Fetch data freshness information."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/stats/data-freshness", timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_outlet_concentration(country: Optional[str] = None):
+    """Fetch outlet concentration ratio."""
+    try:
+        params = {}
+        if country:
+            params["country"] = country
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/outlet-concentration",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_comparative_metrics():
+    """Fetch comparative metrics across countries."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/stats/comparative", timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=60)
+def fetch_articles(
+    query: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    sentiment: Optional[str] = None,
+    categories: Optional[List[str]] = None,
+    entities: Optional[List[str]] = None,
+    outlets: Optional[List[str]] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Search articles with filters."""
+    try:
+        params = {
+            "limit": limit,
+            "offset": offset,
+        }
+        if query:
+            params["q"] = query
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+        if sentiment:
+            params["sentiment"] = sentiment
+        if categories:
+            params["categories"] = ",".join(categories) if isinstance(categories, list) else categories
+        if entities:
+            params["entities"] = ",".join(entities) if isinstance(entities, list) else entities
+        if outlets:
+            params["outlets"] = ",".join(outlets) if isinstance(outlets, list) else outlets
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/articles/search",
+            params=params,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error searching articles: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_article_by_id(article_id: int):
+    """Fetch a single article by ID."""
+    try:
+        response = requests.get(
+            f"{API_BASE_URL}/api/articles/{article_id}",
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_related_articles(article_id: int, limit: int = 5):
+    """Fetch related articles."""
+    try:
+        response = requests.get(
+            f"{API_BASE_URL}/api/articles/{article_id}/related",
+            params={"limit": limit},
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_articles_by_country(
+    partisan: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Fetch articles by country."""
+    try:
+        params = {}
+        if partisan:
+            params["partisan"] = partisan
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/articles-by-country",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching articles by country: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_articles_over_time(
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    granularity: str = "month",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Fetch articles over time."""
+    try:
+        params = {"granularity": granularity}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/articles-over-time",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching articles over time: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_articles_over_time_by_outlet(
+    country: Optional[str] = None,
+    outlets: Optional[List[str]] = None,
+    granularity: str = "month",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Fetch articles over time grouped by outlet."""
+    try:
+        params = {"granularity": granularity}
+        if country:
+            params["country"] = country
+        if outlets:
+            params["outlets"] = ",".join(outlets) if isinstance(outlets, list) else outlets
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/articles-over-time-by-outlet",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching articles over time by outlet: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_top_outlets(
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit: int = 10,
+):
+    """Fetch top outlets."""
+    try:
+        params = {"limit": limit}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/top-outlets",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching top outlets: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_outlet_profile(domain: str):
+    """Fetch outlet profile summary by domain."""
+    try:
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/outlet-profile",
+            params={"domain": domain},
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching outlet profile: {exc}")
+        return None
+
+
+def send_access_request(name: str, email: str, message: str) -> bool:
+    """Send access request to backend for email delivery."""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/api/contact",
+            json={"name": name, "email": email, "message": message},
+            timeout=10,
+        )
+        response.raise_for_status()
+        return True
+    except Exception as exc:
+        st.error(f"Error sending request: {exc}")
+        return False
+
+
+@st.cache_data(ttl=300)
+def fetch_categories(country: Optional[str] = None, partisan: Optional[str] = None):
+    """Fetch category distribution."""
+    try:
+        params = {}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/categories",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching categories: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_categories_over_time(
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    granularity: str = "month",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit: int = 6,
+):
+    """Fetch category trends over time."""
+    try:
+        params = {"granularity": granularity, "limit": limit}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/categories/over-time",
+            params=params,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching category trends: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_sentiment(country: Optional[str] = None, partisan: Optional[str] = None):
+    """Fetch sentiment distribution."""
+    try:
+        params = {}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/sentiment",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching sentiment: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_top_entities(
+    entity_type: str = "persons",
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    limit: int = 20,
+):
+    """Fetch top entities."""
+    try:
+        params = {"entity_type": entity_type, "limit": limit}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/entities/top",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching top entities: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_entity_statistics(country: Optional[str] = None, partisan: Optional[str] = None):
+    """Fetch entity statistics summary."""
+    try:
+        params = {}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/entities",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching entity statistics: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_topic_distribution(
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Fetch topic distribution."""
+    try:
+        params = {}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/topics/distribution",
+            params=params,
+            timeout=20,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching topic distribution: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_topics_over_time(
+    topic_id: Optional[int] = None,
+    country: Optional[str] = None,
+    granularity: str = "month",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Fetch topics over time."""
+    try:
+        params = {"granularity": granularity}
+        if topic_id:
+            params["topic_id"] = topic_id
+        if country:
+            params["country"] = country
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/topics/over-time",
+            params=params,
+            timeout=20,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching topics over time: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_topic_statistics(country: Optional[str] = None, partisan: Optional[str] = None):
+    """Fetch topic statistics summary."""
+    try:
+        params = {}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+
+        response = requests.get(
+            f"{API_BASE_URL}/api/topics/statistics",
+            params=params,
+            timeout=20,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching topic statistics: {exc}")
+        return None

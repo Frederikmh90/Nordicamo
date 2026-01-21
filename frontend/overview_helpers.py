@@ -7,13 +7,13 @@ def format_freshness(freshness: Optional[Dict[str, Any]]) -> Tuple[str, str]:
 
     hours_ago = freshness.get("hours_ago", 0)
     if hours_ago < 24:
-        freshness_text = f"Last updated: {hours_ago} hours ago"
+        freshness_text = f"Dashboard last updated: {hours_ago} hours ago"
     elif hours_ago < 168:
         days_ago = hours_ago // 24
-        freshness_text = f"Last updated: {days_ago} days ago"
+        freshness_text = f"Dashboard last updated: {days_ago} days ago"
     else:
         weeks_ago = hours_ago // 168
-        freshness_text = f"Last updated: {weeks_ago} weeks ago"
+        freshness_text = f"Dashboard last updated: {weeks_ago} weeks ago"
 
     last_article = freshness.get("last_article_date", "N/A")
     if last_article and last_article != "N/A":

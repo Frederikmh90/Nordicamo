@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import stats, topics, contact
+from app.api import stats, topics, contact, articles
 
 # Create FastAPI app
 app = FastAPI(
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(stats.router)
 app.include_router(topics.router)
 app.include_router(contact.router)
+app.include_router(articles.router)
 
 
 @app.get("/")
