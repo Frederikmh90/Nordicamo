@@ -4,3 +4,6 @@ chat/
 chats/
 .ssh/
 .DS_Store
+references/
+data/
+logs/
