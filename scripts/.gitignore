@@ -1,0 +1,8 @@
+*
+!.gitignore
+!from_fulldb_to_dashboard.py
+!compare_db_counts.py
+!dashboard_filter_rules.txt
+!test_dashboard_data_source.py
+!tests/
+!tests/**
