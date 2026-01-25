@@ -2,7 +2,9 @@
 
 Nordic Alternative Media Observatory (Nordicamo) is a comparative platform for studying alternative news media across the Nordic region. It provides structured access to alternative news media content and supports research, journalism, and teaching.
 
-This repository is intended for scholars and collaborators who want to inspect or extend the dashboard setup.
+Website: www.nordicamo.org
+
+![Nordicamo landing page](graphics/NORDICAMO.png)
 
 ## Repository scope
 
