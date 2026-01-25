@@ -1,14 +1,15 @@
 # Nordicamo
 
-Nordic Alternative Media Observatory (Nordicamo) is a comparative platform for studying alternative news media across the Nordic region.
-It provides structured access to alternative news media content and supports research, journalism, and teaching.
+Nordic Alternative Media Observatory (Nordicamo) is a comparative platform for studying alternative news media across the Nordic region. It provides structured access to alternative news media content and supports research, journalism, and teaching.
 
-## Project structure
+This repository is intended for scholars and collaborators who want to inspect or extend the dashboard setup.
+
+## Repository scope
 
 - `frontend/` — Streamlit dashboard
 - `backend/` — FastAPI API
-- `data_collection/` — scraping and ingestion pipeline
-- `scripts/` — maintenance utilities
+
+The **data collection module is not included** in this GitHub repository. Data ingestion, scraping, and pipeline assets are managed separately.
 
 ## Run locally (dev)
 
@@ -29,9 +30,8 @@ streamlit run app.py --server.port 8501
 
 ## Server notes
 
-See `SERVER_RUNBOOK.md` for tmux-based start/stop instructions and dashboard refresh steps.
+See the local runbook (not tracked in GitHub) for tmux-based start/stop instructions and dashboard refresh steps.
 
 ## Security
 
-Do not commit credentials or private keys. Configure DB and SSH access via environment variables or `.env` files.
-
+Do not commit credentials or private keys. Configure DB and SSH access via environment variables or local `.env` files.
