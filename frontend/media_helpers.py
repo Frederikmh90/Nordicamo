@@ -1,6 +1,15 @@
 from typing import Iterable, List, Dict, Any
 
 
+def normalize_domain(domain: str) -> str:
+    if not domain:
+        return domain
+    lowered = domain.strip().lower()
+    if lowered == "document.no":
+        return "www.document.no"
+    return lowered
+
+
 def filter_outlets(outlets: Iterable[Dict], query: str) -> List[Dict]:
     if not query:
         return list(outlets)
@@ -18,7 +27,7 @@ def filter_outlets(outlets: Iterable[Dict], query: str) -> List[Dict]:
 def consolidate_outlets(outlets: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     by_domain: Dict[str, Dict[str, Any]] = {}
     for outlet in outlets:
-        domain = outlet.get("domain")
+        domain = normalize_domain(outlet.get("domain"))
         if not domain:
             continue
         current = by_domain.get(domain)
@@ -36,3 +45,12 @@ def consolidate_outlets(outlets: Iterable[Dict[str, Any]]) -> List[Dict[str, Any
             if not current.get(key) and outlet.get(key):
                 current[key] = outlet.get(key)
     return list(by_domain.values())
+
+
+def select_latest_articles(response: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
+    if not response:
+        return []
+    articles = response.get("articles") or []
+    if not isinstance(articles, list):
+        return []
+    return articles[:limit]

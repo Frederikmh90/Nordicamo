@@ -8,7 +8,7 @@ class TestOverviewHelpers(unittest.TestCase):
         freshness_text, last_article = format_freshness(
             {"hours_ago": 5, "last_article_date": "2025-01-10T12:34:56"}
         )
-        self.assertEqual(freshness_text, "Last updated: 5 hours ago")
+        self.assertEqual(freshness_text, "Dashboard last updated: 5 hours ago")
         self.assertEqual(last_article, "2025-01-10")
 
     def test_format_freshness_days(self):
@@ -17,7 +17,7 @@ class TestOverviewHelpers(unittest.TestCase):
         freshness_text, last_article = format_freshness(
             {"hours_ago": 48, "last_article_date": "2024-12-31"}
         )
-        self.assertEqual(freshness_text, "Last updated: 2 days ago")
+        self.assertEqual(freshness_text, "Dashboard last updated: 2 days ago")
         self.assertEqual(last_article, "2024-12-31")
 
     def test_format_freshness_missing(self):
@@ -26,6 +26,22 @@ class TestOverviewHelpers(unittest.TestCase):
         freshness_text, last_article = format_freshness({})
         self.assertEqual(freshness_text, "Freshness data unavailable")
         self.assertEqual(last_article, "N/A")
+
+    def test_load_db_comparison(self):
+        from overview_helpers import load_db_comparison
+
+        tmp_path = "frontend/tests/tmp_db_compare.json"
+        payload = {"source": "test", "local": {"total": 1}}
+        with open(tmp_path, "w", encoding="utf-8") as handle:
+            handle.write('{"source": "test", "local": {"total": 1}}')
+
+        try:
+            loaded = load_db_comparison(tmp_path)
+            self.assertEqual(loaded, payload)
+        finally:
+            import os
+
+            os.remove(tmp_path)
 
     def test_compute_country_shares(self):
         from overview_helpers import compute_country_shares

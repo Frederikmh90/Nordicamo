@@ -12,7 +12,7 @@ from pathlib import Path
 import time
 
 # Configuration
-REMOTE_HOST = "212.27.13.34"
+REMOTE_HOST = "<SERVER_HOST>"
 REMOTE_PORT = 2111
 REMOTE_USER = "frede"
 REMOTE_DIR = "~/NAMO_nov25"
@@ -82,7 +82,7 @@ def create_database(ssh):
     
     # Create user
     print(f"Creating user '{db_user}'...")
-    cmd = f"sudo -u postgres psql -c \"CREATE USER {db_user} WITH PASSWORD 'namo_password';\" 2>&1 || echo 'User may already exist'"
+    cmd = f"sudo -u postgres psql -c \"CREATE USER {db_user} WITH PASSWORD '<DB_PASSWORD>';\" 2>&1 || echo 'User may already exist'"
     stdin, stdout, stderr = ssh.exec_command(cmd)
     output = stdout.read().decode()
     errors = stderr.read().decode()
@@ -138,7 +138,7 @@ def create_schema(ssh, remote_dir_expanded, db_name, db_user):
     script_path = f"{remote_dir_expanded}/scripts/03_create_database_schema.py"
     
     # Run schema creation
-    cmd = f"cd {remote_dir_expanded} && python3 scripts/03_create_database_schema.py --create-db --host localhost --user {db_user} --password namo_password --database {db_name} 2>&1"
+    cmd = f"cd {remote_dir_expanded} && python3 scripts/03_create_database_schema.py --create-db --host localhost --user {db_user} --password <DB_PASSWORD> --database {db_name} 2>&1"
     
     stdin, stdout, stderr = ssh.exec_command(cmd)
     
@@ -211,7 +211,7 @@ def main():
             print(f"    --actors data/NAMO_actor_251118.xlsx \\")
             print(f"    --host {REMOTE_HOST} \\")
             print(f"    --user {db_user} \\")
-            print(f"    --password namo_password \\")
+            print(f"    --password <DB_PASSWORD> \\")
             print(f"    --database {db_name} \\")
             print(f"    --stats")
         else:

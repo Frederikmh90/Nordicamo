@@ -4,13 +4,13 @@
 
 set -e
 
-REMOTE_HOST="212.27.13.34"
+REMOTE_HOST="<SERVER_HOST>"
 REMOTE_PORT="2111"
 REMOTE_USER="frede"
 CONTAINER_NAME="namo-postgres"
 DB_NAME="namo_db"
 DB_USER="namo_user"
-DB_PASSWORD="namo_password"
+DB_PASSWORD="<DB_PASSWORD>"
 PG_PORT="5432"
 
 echo "=========================================="

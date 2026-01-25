@@ -6,6 +6,10 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
+def normalize_outlets(outlets: List[str]) -> List[str]:
+    return [outlet.strip().lower() for outlet in outlets if outlet and outlet.strip()]
+
+
 class ArticlesService:
     """Service for querying articles."""
 
@@ -56,8 +60,10 @@ class ArticlesService:
             params["sentiment"] = sentiment
 
         if outlets:
-            conditions.append("domain = ANY(:outlets)")
-            params["outlets"] = outlets
+            normalized_outlets = normalize_outlets(outlets)
+            if normalized_outlets:
+                conditions.append("LOWER(domain) = ANY(:outlets)")
+                params["outlets"] = normalized_outlets
 
         if entities:
             conditions.append("entities_json::text ILIKE :entities")

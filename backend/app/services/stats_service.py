@@ -9,6 +9,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def domain_variants(value: str) -> List[str]:
+    base = (value or "").strip().lower()
+    if not base:
+        return []
+    variants = {base}
+    if base.startswith("www."):
+        variants.add(base[4:])
+    else:
+        variants.add(f"www.{base}")
+    return list(variants)
+
+
 class StatsService:
     """Service for computing statistics."""
     
@@ -60,6 +72,50 @@ class StatsService:
             "by_country": by_country,
             "by_partisan": by_partisan
         }
+
+    def get_overview_full(self) -> Dict:
+        """Get overview statistics from the full articles table."""
+        query = text("""
+            SELECT 
+                COUNT(*) as total_articles,
+                COUNT(DISTINCT domain) as total_outlets,
+                MIN(date) as earliest_date,
+                MAX(date) as latest_date
+            FROM articles
+            WHERE date IS NOT NULL
+        """)
+        result = self.db.execute(query).fetchone()
+
+        country_query = text("""
+            SELECT country, COUNT(*) as count
+            FROM articles
+            WHERE country IS NOT NULL
+            GROUP BY country
+            ORDER BY count DESC
+        """)
+        country_results = self.db.execute(country_query).fetchall()
+        by_country = {row[0]: row[1] for row in country_results}
+
+        partisan_query = text("""
+            SELECT partisan, COUNT(*) as count
+            FROM articles
+            WHERE partisan IS NOT NULL
+            GROUP BY partisan
+            ORDER BY count DESC
+        """)
+        partisan_results = self.db.execute(partisan_query).fetchall()
+        by_partisan = {row[0]: row[1] for row in partisan_results}
+
+        return {
+            "total_articles": result[0] or 0,
+            "total_outlets": result[1] or 0,
+            "date_range": {
+                "earliest": str(result[2]) if result[2] else None,
+                "latest": str(result[3]) if result[3] else None,
+            },
+            "by_country": by_country,
+            "by_partisan": by_partisan,
+        }
     
     def get_articles_by_country(
         self,
@@ -72,7 +128,7 @@ class StatsService:
         params = {}
         
         if partisan:
-            conditions.append("partisan = :partisan")
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
         
         if date_from:
@@ -109,11 +165,11 @@ class StatsService:
         params = {}
         
         if country:
-            conditions.append("country = :country")
+            conditions.append("LOWER(country) = LOWER(:country)")
             params["country"] = country
         
         if partisan:
-            conditions.append("partisan = :partisan")
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
         
         if date_from:
@@ -166,11 +222,11 @@ class StatsService:
         params = {"limit": limit}
         
         if country:
-            conditions.append("country = :country")
+            conditions.append("LOWER(country) = LOWER(:country)")
             params["country"] = country
         
         if partisan:
-            conditions.append("partisan = :partisan")
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
 
         if date_from:
@@ -221,28 +277,33 @@ class StatsService:
 
     def get_outlet_profile(self, domain: str) -> Optional[Dict]:
         """Get outlet profile summary by domain."""
+        domains = domain_variants(domain)
+        if not domains:
+            return None
+
         query = text("""
             SELECT
-                domain,
-                actor as outlet_name,
-                country,
+                LOWER(domain) as domain_key,
+                MAX(domain) as domain,
+                MAX(actor) as outlet_name,
+                MAX(country) as country,
                 COUNT(*) as total_articles,
                 MIN(date) as first_article_date,
                 MAX(date) as last_article_date
             FROM clean_articles
-            WHERE domain = :domain
-            GROUP BY domain, actor, country
+            WHERE LOWER(domain) = ANY(:domains)
+            GROUP BY LOWER(domain)
         """)
-        result = self.db.execute(query, {"domain": domain}).fetchone()
+        result = self.db.execute(query, {"domains": domains}).fetchone()
         if not result:
             return None
         return {
-            "domain": result[0],
-            "outlet_name": result[1],
-            "country": result[2],
-            "total_articles": result[3],
-            "first_article_date": str(result[4]) if result[4] else None,
-            "last_article_date": str(result[5]) if result[5] else None,
+            "domain": result[1],
+            "outlet_name": result[2],
+            "country": result[3],
+            "total_articles": result[4],
+            "first_article_date": str(result[5]) if result[5] else None,
+            "last_article_date": str(result[6]) if result[6] else None,
         }
     
     def get_categories_distribution(
@@ -265,11 +326,11 @@ class StatsService:
             params = {}
             
             if country:
-                conditions.append("country = :country")
+                conditions.append("LOWER(country) = LOWER(:country)")
                 params["country"] = country
             
             if partisan:
-                conditions.append("partisan = :partisan")
+                conditions.append("LOWER(partisan) = LOWER(:partisan)")
                 params["partisan"] = partisan
             
             where_clause = " AND ".join(conditions)
@@ -289,11 +350,11 @@ class StatsService:
             params = {}
             
             if country:
-                conditions.append("country = :country")
+                conditions.append("LOWER(country) = LOWER(:country)")
                 params["country"] = country
             
             if partisan:
-                conditions.append("partisan = :partisan")
+                conditions.append("LOWER(partisan) = LOWER(:partisan)")
                 params["partisan"] = partisan
             
             where_clause = " AND ".join(conditions)
@@ -321,11 +382,11 @@ class StatsService:
         params = {}
         
         if country:
-            conditions.append("country = :country")
+            conditions.append("LOWER(country) = LOWER(:country)")
             params["country"] = country
         
         if partisan:
-            conditions.append("partisan = :partisan")
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
         
         where_clause = " AND ".join(conditions)
@@ -375,10 +436,10 @@ class StatsService:
         params: Dict[str, Any] = {"limit": limit}
 
         if country:
-            conditions.append("country = :country")
+            conditions.append("LOWER(country) = LOWER(:country)")
             params["country"] = country
         if partisan:
-            conditions.append("partisan = :partisan")
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
         if date_from:
             conditions.append("date >= :date_from")
@@ -477,11 +538,11 @@ class StatsService:
         params = {"limit": limit, "entity_type": entity_type}
         
         if country:
-            conditions.append("country = :country")
+            conditions.append("LOWER(country) = LOWER(:country)")
             params["country"] = country
         
         if partisan:
-            conditions.append("partisan = :partisan")
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
         
         where_clause = " AND ".join(conditions)
@@ -530,11 +591,11 @@ class StatsService:
         params = {}
         
         if country:
-            conditions.append("country = :country")
+            conditions.append("LOWER(country) = LOWER(:country)")
             params["country"] = country
         
         if partisan:
-            conditions.append("partisan = :partisan")
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
         
         where_clause = " AND ".join(conditions)
@@ -659,6 +720,65 @@ class StatsService:
             "growth_rate_per_year": growth_rate,
             "coverage_years": coverage_years
         }
+
+    def get_enhanced_overview_full(self) -> Dict:
+        """Get enhanced overview with full dataset metrics."""
+        base_overview = self.get_overview_full()
+
+        query = text("""
+            SELECT 
+                COUNT(*)::float / NULLIF(COUNT(DISTINCT domain), 0) as avg_articles_per_outlet
+            FROM articles
+            WHERE domain IS NOT NULL
+        """)
+        result = self.db.execute(query).fetchone()
+        avg_articles_per_outlet = float(result[0]) if result[0] else 0.0
+
+        growth_query = text("""
+            SELECT 
+                TO_CHAR(date, 'YYYY') as year,
+                COUNT(*) as count
+            FROM articles
+            WHERE date IS NOT NULL
+            GROUP BY TO_CHAR(date, 'YYYY')
+            ORDER BY year
+        """)
+        growth_results = self.db.execute(growth_query).fetchall()
+
+        growth_rate = None
+        if len(growth_results) >= 2:
+            years = [int(row[0]) for row in growth_results]
+            counts = [row[1] for row in growth_results]
+            if len(years) > 1:
+                n = len(years)
+                sum_x = sum(years)
+                sum_y = sum(counts)
+                sum_xy = sum(years[i] * counts[i] for i in range(n))
+                sum_x2 = sum(x * x for x in years)
+
+                denominator = n * sum_x2 - sum_x * sum_x
+                if denominator != 0:
+                    slope = (n * sum_xy - sum_x * sum_y) / denominator
+                    growth_rate = round(slope, 1)
+
+        dr = base_overview.get("date_range", {})
+        earliest = dr.get("earliest")
+        latest = dr.get("latest")
+        coverage_years = None
+        if earliest and latest:
+            try:
+                earliest_year = int(str(earliest)[:4])
+                latest_year = int(str(latest)[:4])
+                coverage_years = f"{earliest_year}-{latest_year}"
+            except Exception:
+                pass
+
+        return {
+            **base_overview,
+            "avg_articles_per_outlet": round(avg_articles_per_outlet, 1),
+            "growth_rate_per_year": growth_rate,
+            "coverage_years": coverage_years,
+        }
     
     def get_outlet_concentration(self, country: Optional[str] = None) -> Dict:
         """Get outlet concentration ratio (top 3 outlets' % of total articles)."""
@@ -666,7 +786,7 @@ class StatsService:
         params = {}
         
         if country:
-            conditions.append("country = :country")
+            conditions.append("LOWER(country) = LOWER(:country)")
             params["country"] = country
         
         where_clause = " AND ".join(conditions)
@@ -730,7 +850,7 @@ class StatsService:
                     partisan,
                     COUNT(*) as count
                 FROM clean_articles
-                WHERE country = :country AND partisan IS NOT NULL
+                WHERE LOWER(country) = LOWER(:country) AND partisan IS NOT NULL
                 GROUP BY partisan
             """)
             partisan_results = self.db.execute(partisan_query, {"country": country}).fetchall()

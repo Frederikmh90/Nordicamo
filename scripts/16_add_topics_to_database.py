@@ -152,7 +152,7 @@ def main():
     parser.add_argument(
         "--password",
         type=str,
-        default="namo_password",
+        default="<DB_PASSWORD>",
         help="Database password",
     )
     parser.add_argument(

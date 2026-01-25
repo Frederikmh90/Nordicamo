@@ -1,0 +1,5 @@
+# Dashboard filter rules
+# Use ISO dates. Domains are comma-separated, lowercased or mixed is fine.
+
+min_date=2008-01-01
+exclude_domains=frihedsbrevet.dk,180grader.dk,nordfront, www.nordfront.dk, nordfront.dk, danmarksfriefjernsyn.dk, extrauutiset.com, www.extrauutiset.com

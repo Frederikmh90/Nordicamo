@@ -12,7 +12,7 @@ DB_CONFIG = {
     'host': 'localhost',
     'port': '5432',
     'user': 'namo_user',
-    'password': 'namo_password',
+    'password': '<DB_PASSWORD>',
     'database': 'namo_db'
 }
 

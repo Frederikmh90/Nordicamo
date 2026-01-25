@@ -273,6 +273,13 @@ async def get_enhanced_overview(db: Session = Depends(get_db)):
     return service.get_enhanced_overview()
 
 
+@router.get("/overview/full")
+async def get_full_enhanced_overview(db: Session = Depends(get_db)):
+    """Get enhanced overview from the full articles dataset."""
+    service = StatsService(db)
+    return service.get_enhanced_overview_full()
+
+
 @router.get("/data-freshness")
 async def get_data_freshness(db: Session = Depends(get_db)):
     """Get data freshness information (last updated timestamp)."""

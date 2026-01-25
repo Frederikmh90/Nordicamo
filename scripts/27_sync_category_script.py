@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 # Server details
-HOST = "212.27.13.34"
+HOST = "<SERVER_HOST>"
 PORT = 2111
 USERNAME = "frede"
 REMOTE_DIR = "~/NAMO_nov25"

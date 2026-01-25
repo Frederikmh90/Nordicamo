@@ -36,7 +36,7 @@ def setup_database():
         
         if not user_exists:
             print("Creating user namo_user...")
-            cur.execute("CREATE USER namo_user WITH PASSWORD 'namo_password'")
+            cur.execute("CREATE USER namo_user WITH PASSWORD '<DB_PASSWORD>'")
             cur.execute("ALTER USER namo_user CREATEDB")
             print("✓ User created")
         else:
@@ -53,7 +53,7 @@ def setup_database():
         test_conn = psycopg2.connect(
             host='localhost',
             user='namo_user',
-            password='namo_password',
+            password='<DB_PASSWORD>',
             database='namo_db'
         )
         test_cur = test_conn.cursor()

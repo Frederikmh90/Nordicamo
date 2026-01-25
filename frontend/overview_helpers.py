@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List, Iterable, Mapping, Sequence
 
 
@@ -22,6 +24,17 @@ def format_freshness(freshness: Optional[Dict[str, Any]]) -> Tuple[str, str]:
         last_article_formatted = "N/A"
 
     return (freshness_text, last_article_formatted)
+
+
+def load_db_comparison(path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    base_dir = Path(__file__).resolve().parent
+    compare_path = Path(path) if path else base_dir / "data" / "db_compare.json"
+    if not compare_path.exists():
+        return None
+    try:
+        return json.loads(compare_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def compute_country_shares(

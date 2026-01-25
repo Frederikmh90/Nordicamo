@@ -698,7 +698,31 @@ Now classify this article. Respond with ONLY the JSON object:"""
         
         return None
 
-    def process_batch(self, df: pl.DataFrame, second_pass: bool = True) -> pl.DataFrame:
+    def _save_checkpoint(
+        self,
+        df: pl.DataFrame,
+        results: List[Dict],
+        output_path: Path,
+    ) -> None:
+        """Save incremental results to a single checkpoint file."""
+        if not results:
+            return
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_df = df.head(len(results)).with_columns([
+            pl.Series("category", [r["category"] for r in results]),
+            pl.Series("category_reasoning", [r["reasoning"] for r in results]),
+            pl.Series("category_processed_at", [r["nlp_processed_at"] for r in results]),
+        ])
+        checkpoint_df.write_parquet(output_path)
+        logger.info(f"💾 Checkpoint saved: {len(results)} rows -> {output_path}")
+
+    def process_batch(
+        self,
+        df: pl.DataFrame,
+        second_pass: bool = True,
+        checkpoint_size: int = 0,
+        checkpoint_output: Optional[Path] = None,
+    ) -> pl.DataFrame:
         """Process a batch of articles with optional second pass for 'Other' categories."""
         logger.info(f"Processing {len(df)} articles for category classification")
         
@@ -724,13 +748,17 @@ Now classify this article. Respond with ONLY the JSON object:"""
             
             result = self.classify_category(content, country=country)
             results.append(result)
-        
+            if checkpoint_size and checkpoint_output and len(results) % checkpoint_size == 0:
+                self._save_checkpoint(df, results, checkpoint_output)
+
         # Add results as new columns
         df = df.with_columns([
             pl.Series("category", [r["category"] for r in results]),
             pl.Series("category_reasoning", [r["reasoning"] for r in results]),
             pl.Series("category_processed_at", [r["nlp_processed_at"] for r in results]),
         ])
+        if checkpoint_size and checkpoint_output:
+            self._save_checkpoint(df, results, checkpoint_output)
         
         # Second pass: Re-process articles with "Other" category
         if second_pass:
@@ -811,6 +839,17 @@ def main():
         "--output", type=str, help="Output parquet file path (optional)"
     )
     parser.add_argument(
+        "--checkpoint-size",
+        type=int,
+        default=0,
+        help="Save incremental results every N rows (0 disables)",
+    )
+    parser.add_argument(
+        "--checkpoint-output",
+        type=str,
+        help="Checkpoint parquet path (defaults to --output)",
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default="mistralai/Mistral-7B-Instruct-v0.3",
@@ -873,7 +912,23 @@ def main():
     )
 
     # Process
-    df_enriched = classifier.process_batch(df)
+    checkpoint_output = None
+    if args.checkpoint_size > 0:
+        if args.checkpoint_output:
+            checkpoint_output = Path(args.checkpoint_output)
+        elif args.output:
+            checkpoint_output = Path(args.output)
+
+        if checkpoint_output and not checkpoint_output.is_absolute():
+            checkpoint_output = OUTPUT_DIR / checkpoint_output
+        if checkpoint_output:
+            logger.info(f"Checkpointing enabled: every {args.checkpoint_size} rows -> {checkpoint_output}")
+
+    df_enriched = classifier.process_batch(
+        df,
+        checkpoint_size=args.checkpoint_size,
+        checkpoint_output=checkpoint_output,
+    )
 
     # Save
     if args.output:

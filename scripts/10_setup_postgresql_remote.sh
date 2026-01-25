@@ -4,7 +4,7 @@
 
 set -e
 
-REMOTE_HOST="212.27.13.34"
+REMOTE_HOST="<SERVER_HOST>"
 REMOTE_PORT="2111"
 REMOTE_USER="frede"
 REMOTE_DIR="~/NAMO_nov25"
@@ -105,7 +105,7 @@ if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" 
     echo "✅ Database user '$DB_USER' already exists"
 else
     echo "Creating database user '$DB_USER'..."
-    sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD 'namo_password';" || {
+    sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '<DB_PASSWORD>';" || {
         echo "Note: User creation may have failed, trying without password..."
         sudo -u postgres createuser $DB_USER || true
     }
@@ -150,7 +150,7 @@ echo "Database: $DB_NAME"
 echo "User: $DB_USER"
 echo ""
 echo "Connection string:"
-echo "  postgresql://$DB_USER:namo_password@localhost:5432/$DB_NAME"
+echo "  postgresql://$DB_USER:<DB_PASSWORD>@localhost:5432/$DB_NAME"
 echo ""
 echo "Next steps:"
 echo "  1. Sync schema creation script to remote"

@@ -1,6 +1,7 @@
 """Overview (landing) page layout."""
 
 import html
+from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.express as px
@@ -8,21 +9,39 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import get_api_base_url
-from overview_helpers import format_freshness
+from overview_helpers import format_freshness, load_db_comparison
 from services.api import (
     fetch_articles,
     fetch_articles_over_time,
     fetch_data_freshness,
     fetch_enhanced_overview,
+    fetch_full_enhanced_overview,
     fetch_overview,
 )
+from pages.footer import render_footer_bar
 
 API_BASE_URL = get_api_base_url()
 
 
 @st.cache_data(ttl=300)
 def _fetch_latest_articles() -> list[dict]:
-    data = fetch_articles(limit=100, offset=0)
+    overview = fetch_overview()
+    latest = overview.get("date_range", {}).get("latest") if overview else None
+    latest_date = None
+    if latest:
+        try:
+            latest_date = datetime.fromisoformat(str(latest)[:10]).date()
+        except Exception:
+            latest_date = None
+
+    if latest_date:
+        date_from = (latest_date - timedelta(days=14)).isoformat()
+        date_to = latest_date.isoformat()
+    else:
+        date_from = None
+        date_to = None
+
+    data = fetch_articles(limit=500, offset=0, date_from=date_from, date_to=date_to)
     if not data:
         return []
     return data.get("articles", []) or []
@@ -32,41 +51,23 @@ def _build_ticker_sample(articles: list[dict]) -> list[dict]:
     if not articles:
         return []
 
-    groups: dict[tuple[str, str], list[dict]] = {}
+    groups: dict[str, list[dict]] = {}
     for article in articles:
         domain = article.get("domain") or ""
-        country = (article.get("country") or "").lower()
         if not domain:
             continue
-        groups.setdefault((domain, country), []).append(article)
+        groups.setdefault(domain, []).append(article)
 
     ordered_groups = sorted(groups.items(), key=lambda item: len(item[1]), reverse=True)
     if not ordered_groups:
         return []
 
+    max_outlets = 40
+    per_outlet = 2
     sample: list[dict] = []
-    countries_seen: set[str] = set()
-    for (domain, country), items in ordered_groups:
-        sample.extend(items[:2])
-        if country:
-            countries_seen.add(country)
-        if len(sample) >= 10 and len(countries_seen) >= 3:
-            break
 
-    if len(countries_seen) < 4 or len(sample) < 6:
-        for (domain, country), items in ordered_groups:
-            if all(item.get("domain") != domain for item in sample):
-                sample.append(items[0])
-                if country:
-                    countries_seen.add(country)
-            if len(sample) >= 12 and len(countries_seen) >= 4:
-                break
-
-    if len(sample) < 6:
-        sample = []
-        for items in groups.values():
-            sample.extend(items[:1])
-        sample = sample[:12]
+    for _, items in ordered_groups[:max_outlets]:
+        sample.extend(items[:per_outlet])
 
     return sample
 
@@ -74,8 +75,10 @@ def _build_ticker_sample(articles: list[dict]) -> list[dict]:
 def show_overview_page() -> None:
     """Show overview dashboard page."""
     enhanced_overview = fetch_enhanced_overview()
+    full_overview = fetch_full_enhanced_overview()
     freshness = fetch_data_freshness()
-    overview = enhanced_overview or fetch_overview()
+    overview = fetch_overview()
+    kpi_source = full_overview or enhanced_overview or overview
 
     def render_kpi(label: str, value: str, subtitle: str | None = None) -> None:
         subtitle_html = (
@@ -109,12 +112,14 @@ def show_overview_page() -> None:
             item = f"<strong>{html.escape(domain)}</strong> — {html.escape(title)} ({html.escape(date)})"
             ticker_items.append(f"<span class='news-ticker-item'>{item}</span>")
         ticker_html = "".join(ticker_items)
+        item_count = len(ticker_items)
+        duration = max(120, min(320, item_count * 8))
         st.markdown(
             f"""
             <div class="news-ticker">
                 <div class="news-ticker-label">Latest</div>
                 <div class="news-ticker-track">
-                    <div class="news-ticker-items">{ticker_html}</div>
+                    <div class="news-ticker-items" style="--ticker-duration: {duration}s">{ticker_html}</div>
                 </div>
             </div>
             """,
@@ -124,59 +129,88 @@ def show_overview_page() -> None:
     hero_left, hero_right = st.columns([2.3, 1.2])
     with hero_left:
         st.markdown(
-            "<div class='section-title'>Observatory</div>",
+            "<div class='section-title'>Nordicamo</div>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div class='subtle'>Monitoring of alternative media signals across the Nordic region. Access high-level "
-            "comparative analytics (Explorer), engage with the latest content from alternative media outlets (Media) "
-            "or get access to current or historical data (Get Access). Enjoy!</div>",
+            "<div class='subtle' style='color:#111111;font-size:1.05rem;'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative platform for studying "
+            "alternative news media across the Nordic region (currently <strong>Denmark, Finland, Norway, and Sweden</strong>). "
+            "It focuses on publisher-operated websites and supports research, journalism, and teaching. "
+            "<em>Alternative news media</em> refers to outlets that self-position as alternatives to mainstream journalism or political institutions.</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='subtle' style='color:#111111;font-size:1.05rem;'>Start exploring: use <strong>Explorer</strong> to compare trends across countries, "
+            "browse recent articles in <strong>Media</strong>, or request current and historical datasets through "
+            "<strong>Full Data Access</strong>. Enjoy!</div>",
             unsafe_allow_html=True,
         )
     with hero_right:
-        st.markdown(
-            "<div class='chip'><span class='pulse'></span> Live intake active</div>",
-            unsafe_allow_html=True,
-        )
         if freshness:
             freshness_text, last_article_formatted = format_freshness(freshness)
-            st.markdown(
-                f"<div class='subtle' style='margin-top:8px;'>{freshness_text}<br/>Last article: {last_article_formatted}</div>",
-                unsafe_allow_html=True,
+            status_body = (
+                f"<div class='subtle' style='margin-top:8px;'>{freshness_text}<br/>"
+                f"Last article: {last_article_formatted}</div>"
             )
         else:
-            st.markdown(
-                "<div class='subtle' style='margin-top:8px;'>Freshness data unavailable</div>",
-                unsafe_allow_html=True,
-            )
+            status_body = "<div class='subtle' style='margin-top:8px;'>Freshness data unavailable</div>"
+
+        st.markdown(
+            f"""
+            <div class='hero-right'>
+                <div class='status-card'>
+                    <div class='chip'><span class='pulse'></span> Live intake active</div>
+                    {status_body}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-    if overview:
+    if kpi_source:
         k1, k2, k3, k4, k5 = st.columns(5)
         with k1:
-            total_articles = overview.get("total_articles", 0)
+            total_articles = kpi_source.get("total_articles", 0)
             render_kpi("Total Articles", f"{total_articles:,}")
         with k2:
-            render_kpi("Outlets", f"{overview.get('total_outlets', 0):,}")
+            total_outlets = kpi_source.get("total_outlets", 0)
+            render_kpi("Outlets", f"{total_outlets:,}")
         with k3:
-            avg_per_outlet = enhanced_overview.get("avg_articles_per_outlet", 0) if enhanced_overview else 0
+            avg_per_outlet = kpi_source.get("avg_articles_per_outlet", 0) if kpi_source else 0
             render_kpi("Articles per Outlet", f"{avg_per_outlet:,.0f}")
         with k4:
-            coverage_years = enhanced_overview.get("coverage_years") if enhanced_overview else None
-            if not coverage_years:
-                dr = overview.get("date_range", {})
+            coverage_years = kpi_source.get("coverage_years") if kpi_source else None
+            if coverage_years:
+                try:
+                    start_year, end_year = coverage_years.split("-", 1)
+                    start_year = max(int(start_year), 2006)
+                    coverage_years = f"{start_year}-{end_year}"
+                except Exception:
+                    pass
+            else:
+                dr = overview.get("date_range", {}) if overview else {}
                 earliest = dr.get("earliest") or "N/A"
                 latest = dr.get("latest") or "N/A"
-                coverage_years = f"{earliest[:4]}-{latest[:4]}" if earliest != "N/A" else "N/A"
+                if earliest != "N/A" and latest != "N/A":
+                    try:
+                        start_year = max(int(str(earliest)[:4]), 2006)
+                        end_year = str(latest)[:4]
+                        coverage_years = f"{start_year}-{end_year}"
+                    except Exception:
+                        coverage_years = "N/A"
+                else:
+                    coverage_years = "N/A"
             render_kpi("Coverage", f"{coverage_years}")
         with k5:
-            growth_rate = enhanced_overview.get("growth_rate_per_year") if enhanced_overview else None
+            growth_rate = kpi_source.get("growth_rate_per_year") if kpi_source else None
             if growth_rate:
                 growth_display = f"+{growth_rate:,.0f}" if growth_rate > 0 else f"{growth_rate:,.0f}"
                 render_kpi("Growth Rate", growth_display, "articles/year")
             else:
-                render_kpi("Countries", f"{len(overview.get('by_country', {}))}")
+                render_kpi("Countries", f"{len((overview or {}).get('by_country', {}))}")
 
     if not overview:
         st.error("Unable to load data. Please check API connection.")
@@ -198,12 +232,15 @@ def show_overview_page() -> None:
         year_max = 2025
     if year_min > year_max:
         year_min, year_max = 2005, 2025
+    if year_min < 2006:
+        year_min = 2006
 
+    default_start = 2021 if year_min <= 2021 <= year_max else year_min
     year_from, year_to = st.slider(
         "Year range",
         min_value=year_min,
         max_value=year_max,
-        value=(year_min, year_max),
+        value=(default_start, year_max),
         step=1,
         key="ov_year_range",
     )
@@ -229,7 +266,7 @@ def show_overview_page() -> None:
         granularity = st.selectbox(
             "Time Granularity",
             options=["Year", "Month", "Week"],
-            index=0,
+            index=1,
             help="Time period grouping for the time series chart (year, month, or week)",
         )
 
@@ -323,21 +360,4 @@ def show_overview_page() -> None:
             st.info("No data available for selected filters.")
 
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="about-card">
-            <h4>What is Nordicamo?</h4>
-            <p>Nordicamo provides a comparative view of alternative news media across the Nordic region. The observatory
-            combines structured data collection with descriptive analytics so researchers can trace publication patterns,
-            outlet concentration, and category shifts over time, then move into deeper qualitative interpretation.</p>
-            <div class="about-card-spacer"></div>
-            <p>Nordicamo is part of the research project
-            <a href='https://ruc.dk/en/forskningsprojekt/alternative-media-and-ideological-counterpublics'
-            target='_blank' rel='noopener'>AlterPublics</a> based at
-            <a href='https://ruc.dk/en' target='_blank' rel='noopener'>Roskilde University</a> (Denmark) and
-            supported by the <a href='https://digitalmedialab.ruc.dk/' target='_blank' rel='noopener'>
-            Digital Media Lab</a> (RUC) (thanks!).</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    render_footer_bar()

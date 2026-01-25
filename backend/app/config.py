@@ -16,7 +16,7 @@ class Settings:
     DB_HOST: str = os.getenv("DB_HOST", "localhost")
     DB_PORT: str = os.getenv("DB_PORT", "5432")
     DB_USER: str = os.getenv("DB_USER", "namo_user")
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "namo_password")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "<DB_PASSWORD>")
     DB_NAME: str = os.getenv("DB_NAME", "namo_db")
     
     @property
@@ -30,11 +30,10 @@ class Settings:
     API_DESCRIPTION: str = "Nordic Alternative Media Observatory API"
     
     # Data quality configuration
-    MIN_ARTICLE_DATE: str = "2003-01-01"  # Use clean data from 2003+
+    MIN_ARTICLE_DATE: str = "2008-01-01"  # Use clean data from 2008+
     MAX_FUTURE_DAYS: int = 90  # Prevent scraper errors with future dates
     
     # Caching (if using Redis later)
     CACHE_TTL: int = 3600  # 1 hour default
 
 settings = Settings()
-

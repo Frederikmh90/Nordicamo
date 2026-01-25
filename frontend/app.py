@@ -79,7 +79,7 @@ def build_topbar_html(current_page: str) -> str:
         ("Explorer", "Explorer"),
         ("Media", "Media"),
         ("About", "About"),
-        ("Get Access", "GetAccess"),
+        ("Full Data Access", "GetAccess"),
     ]
     logo_to_use = get_trimmed_logo()
     logo_html = "<div class='topbar-logo'>NAMO</div>"
@@ -162,9 +162,9 @@ st.markdown("""
 
     .section-title {
         font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #23313f;
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: #111111;
         margin: 0 0 var(--space-2) 0;
     }
 
@@ -178,6 +178,16 @@ st.markdown("""
         border: 1px solid var(--color-border);
         border-radius: 16px;
         padding: 24px 28px;
+        box-shadow: var(--shadow-soft);
+    }
+    .hero-right {
+        text-align: left;
+    }
+    .status-card {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 14px 16px;
         box-shadow: var(--shadow-soft);
     }
 
@@ -425,6 +435,18 @@ st.markdown("""
         box-shadow: var(--shadow-soft);
         margin-bottom: 12px;
     }
+    .about-row {
+        align-items: stretch;
+    }
+    .about-row .about-card {
+        height: 100%;
+    }
+    .about-card.top-row {
+        min-height: 560px;
+    }
+    .about-card.bottom-row {
+        min-height: 520px;
+    }
     .about-card:empty {
         display: none;
     }
@@ -468,7 +490,7 @@ st.markdown("""
     }
 
     .news-ticker-label {
-        font-size: 12px;
+        font-size: 14px;
         font-weight: 700;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -486,8 +508,8 @@ st.markdown("""
     .news-ticker-items {
         display: inline-block;
         padding-left: 100%;
-        animation: ticker-scroll 39s linear infinite;
-        font-size: 13px;
+        animation: ticker-scroll var(--ticker-duration, 40s) linear infinite;
+        font-size: 15px;
         color: var(--color-text-muted);
     }
 
@@ -503,6 +525,25 @@ st.markdown("""
         100% {
             transform: translateX(-100%);
         }
+    }
+
+    .footer-bar {
+        margin-top: 28px;
+        padding: 14px 18px;
+        background: rgba(255, 255, 255, 0.7);
+        border-top: 1px solid var(--color-border);
+        border-radius: 12px;
+        color: #111111;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .footer-bar a {
+        color: var(--color-accent-strong);
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .footer-bar a:hover {
+        text-decoration: underline;
     }
 
     /* Code blocks */
@@ -543,7 +584,7 @@ def main():
         page_list = params.get("page")
         page = page_list[0] if page_list else None
 
-    legacy_pages = {"Platform": "Nordicamo", "Countries": "Explorer", "Get Access": "GetAccess"}
+    legacy_pages = {"Platform": "Nordicamo", "Countries": "Explorer", "Full Data Access": "GetAccess"}
     if page in legacy_pages:
         page = legacy_pages[page]
         try:

@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 # Configuration
-REMOTE_HOST = "212.27.13.34"
+REMOTE_HOST = "<SERVER_HOST>"
 REMOTE_PORT = 2111
 REMOTE_USER = "frede"
 REMOTE_DIR = "~/NAMO_nov25"

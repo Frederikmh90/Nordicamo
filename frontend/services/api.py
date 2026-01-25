@@ -8,13 +8,15 @@ import streamlit as st
 from config import get_api_base_url
 
 API_BASE_URL = get_api_base_url()
+API_TIMEOUT = 15
+API_TIMEOUT_LONG = 60
 
 
 @st.cache_data(ttl=300)
 def fetch_overview():
     """Fetch overview statistics."""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/stats/overview", timeout=10)
+        response = requests.get(f"{API_BASE_URL}/api/stats/overview", timeout=API_TIMEOUT)
         response.raise_for_status()
         return response.json()
     except Exception as exc:
@@ -26,7 +28,10 @@ def fetch_overview():
 def fetch_enhanced_overview():
     """Fetch enhanced overview with additional metrics."""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/stats/overview/enhanced", timeout=10)
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/overview/enhanced",
+            timeout=API_TIMEOUT,
+        )
         response.raise_for_status()
         return response.json()
     except Exception as exc:
@@ -34,11 +39,26 @@ def fetch_enhanced_overview():
         return None
 
 
+@st.cache_data(ttl=300)
+def fetch_full_enhanced_overview():
+    """Fetch enhanced overview from the full dataset."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/stats/overview/full", timeout=API_TIMEOUT)
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching full overview: {exc}")
+        return None
+
+
 @st.cache_data(ttl=60)
 def fetch_data_freshness():
     """Fetch data freshness information."""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/stats/data-freshness", timeout=10)
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/data-freshness",
+            timeout=API_TIMEOUT,
+        )
         response.raise_for_status()
         return response.json()
     except Exception:
@@ -55,7 +75,7 @@ def fetch_outlet_concentration(country: Optional[str] = None):
         response = requests.get(
             f"{API_BASE_URL}/api/stats/outlet-concentration",
             params=params,
-            timeout=10,
+            timeout=API_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -67,7 +87,10 @@ def fetch_outlet_concentration(country: Optional[str] = None):
 def fetch_comparative_metrics():
     """Fetch comparative metrics across countries."""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/stats/comparative", timeout=10)
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/comparative",
+            timeout=API_TIMEOUT,
+        )
         response.raise_for_status()
         return response.json()
     except Exception:
@@ -116,7 +139,7 @@ def fetch_articles(
         response = requests.get(
             f"{API_BASE_URL}/api/articles/search",
             params=params,
-            timeout=30,
+            timeout=API_TIMEOUT_LONG,
         )
         response.raise_for_status()
         return response.json()
@@ -125,13 +148,42 @@ def fetch_articles(
         return None
 
 
+def fetch_articles_search(
+    query: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    sentiment: Optional[str] = None,
+    categories: Optional[List[str]] = None,
+    entities: Optional[List[str]] = None,
+    outlets: Optional[List[str]] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Compatibility wrapper for article search."""
+    return fetch_articles(
+        query=query,
+        date_from=date_from,
+        date_to=date_to,
+        country=country,
+        partisan=partisan,
+        sentiment=sentiment,
+        categories=categories,
+        entities=entities,
+        outlets=outlets,
+        limit=limit,
+        offset=offset,
+    )
+
+
 @st.cache_data(ttl=300)
 def fetch_article_by_id(article_id: int):
     """Fetch a single article by ID."""
     try:
         response = requests.get(
             f"{API_BASE_URL}/api/articles/{article_id}",
-            timeout=10,
+            timeout=API_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -146,7 +198,7 @@ def fetch_related_articles(article_id: int, limit: int = 5):
         response = requests.get(
             f"{API_BASE_URL}/api/articles/{article_id}/related",
             params={"limit": limit},
-            timeout=10,
+            timeout=API_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -173,7 +225,7 @@ def fetch_articles_by_country(
         response = requests.get(
             f"{API_BASE_URL}/api/stats/articles-by-country",
             params=params,
-            timeout=10,
+            timeout=API_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -205,7 +257,7 @@ def fetch_articles_over_time(
         response = requests.get(
             f"{API_BASE_URL}/api/stats/articles-over-time",
             params=params,
-            timeout=10,
+            timeout=API_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -269,7 +321,7 @@ def fetch_top_outlets(
         response = requests.get(
             f"{API_BASE_URL}/api/stats/top-outlets",
             params=params,
-            timeout=10,
+            timeout=API_TIMEOUT_LONG,
         )
         response.raise_for_status()
         return response.json()

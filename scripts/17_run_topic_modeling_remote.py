@@ -13,7 +13,7 @@ from pathlib import Path
 import time
 
 # Configuration
-REMOTE_HOST = "212.27.13.34"
+REMOTE_HOST = "<SERVER_HOST>"
 REMOTE_PORT = 2111
 REMOTE_USER = "frede"
 REMOTE_DIR = "~/NAMO_nov25"
@@ -397,7 +397,7 @@ def main():
             print(f"1. Load topics into database:")
             print(f"   python scripts/16_add_topics_to_database.py \\")
             print(f"     --topics {args.output} \\")
-            print(f"     --host localhost --user namo_user --password namo_password --database namo_db")
+            print(f"     --host localhost --user namo_user --password <DB_PASSWORD> --database namo_db")
             print(f"\n2. View topics in dashboard (after loading)")
         else:
             print("\n⚠️  Topic modeling failed. Check logs above.")

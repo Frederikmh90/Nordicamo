@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import streamlit as st
 
+from pages.footer import render_footer_bar
+
 from services.api import send_access_request
 
 
 def show_get_access_page() -> None:
     """Show contact form for data access requests."""
-    st.markdown('<h1 class="main-header">Get Access - Send Us a Message</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Send Us a Message</h1>', unsafe_allow_html=True)
     st.markdown(
         "Please describe your research purpose, specify the datasets/variables you are requesting, and "
         "outline how you intend to use the data (e.g., methodology, scope, and anticipated outputs). "
@@ -42,3 +44,4 @@ def show_get_access_page() -> None:
 
         if send_access_request(name=name, email=email, message=request):
             st.success("Request sent. We will get back to you soon.")
+    render_footer_bar()

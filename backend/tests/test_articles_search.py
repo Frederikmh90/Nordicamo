@@ -70,5 +70,13 @@ class TestArticlesSearchEndpoint(unittest.TestCase):
         self.assertEqual(payload["articles"][0]["title"], "Example A")
 
 
+class TestArticlesServiceHelpers(unittest.TestCase):
+    def test_normalize_outlets(self):
+        from app.services.articles_service import normalize_outlets
+
+        outlets = ["Example.com", "  WWW.Example.org ", "", None]
+        self.assertEqual(normalize_outlets(outlets), ["example.com", "www.example.org"])
+
+
 if __name__ == "__main__":
     unittest.main()

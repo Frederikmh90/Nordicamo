@@ -5,6 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from pages.footer import render_footer_bar
+
 from media_helpers import consolidate_outlets
 from overview_helpers import compute_lorenz_curve, compute_partisan_shares, compute_top_n_share
 from services.api import (
@@ -19,9 +21,9 @@ from services.api import (
 
 def show_explorer_page() -> None:
     """Show country-specific analysis page."""
-    st.markdown('<h1 class="main-header">First Stop: The Overview</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Overview</h1>', unsafe_allow_html=True)
     st.markdown(
-        "<div class='subtle'>The Explorer provides a high-level overview of the dataset. "
+        "<div class='subtle'>The Explorer provides a high-level overview of the alternative news media content. "
         "Start with all countries for a broad comparison, or select a country to see outlets and "
         "publishing activity over time. Adjust filters to narrow the view.</div>",
         unsafe_allow_html=True,
@@ -60,13 +62,13 @@ def show_explorer_page() -> None:
     with tables_col1:
         heading = "Outlets (All Countries)" if not country else f"Outlets ({country.capitalize()})"
         st.subheader(heading)
-        outlets_data = fetch_top_outlets(country=country, limit=1000)
+        outlets_data = fetch_top_outlets(country=country, limit=300)
 
         if outlets_data and outlets_data.get("data"):
             df_outlets = pd.DataFrame(consolidate_outlets(outlets_data["data"]))
             recent_data = fetch_top_outlets(
                 country=country,
-                limit=1000,
+                limit=300,
                 date_from="2025-01-01",
                 date_to="2026-12-31",
             )
@@ -140,7 +142,7 @@ def show_explorer_page() -> None:
                 "Finland": "#003580",
             }
             for ctry in countries:
-                outlets_for_country = fetch_top_outlets(country=ctry, limit=1000)
+                outlets_for_country = fetch_top_outlets(country=ctry, limit=300)
                 if outlets_for_country and outlets_for_country.get("data"):
                     consolidated = consolidate_outlets(outlets_for_country["data"])
                     share = compute_top_n_share(consolidated, n=5)
@@ -181,7 +183,7 @@ def show_explorer_page() -> None:
             )
             partisan_rows = []
             for ctry in ["denmark", "sweden", "norway", "finland"]:
-                outlets_for_country = fetch_top_outlets(country=ctry, limit=1000)
+                outlets_for_country = fetch_top_outlets(country=ctry, limit=300)
                 if outlets_for_country and outlets_for_country.get("data"):
                     consolidated = consolidate_outlets(outlets_for_country["data"])
                     shares = compute_partisan_shares(consolidated)
@@ -357,7 +359,7 @@ def show_explorer_page() -> None:
             st.caption("Lorenz curve of article production per outlet (more bowed = more concentrated).")
             lorenz_fig = go.Figure()
             for ctry in ["denmark", "sweden", "norway", "finland"]:
-                outlets_for_country = fetch_top_outlets(country=ctry, limit=1000)
+                outlets_for_country = fetch_top_outlets(country=ctry, limit=300)
                 if outlets_for_country and outlets_for_country.get("data"):
                     consolidated = consolidate_outlets(outlets_for_country["data"])
                     counts = [row.get("count", 0) for row in consolidated]
@@ -561,3 +563,5 @@ def show_explorer_page() -> None:
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             )
             st.plotly_chart(fig, use_container_width=True)
+
+    render_footer_bar()
