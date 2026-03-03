@@ -8,8 +8,10 @@ import streamlit as st
 from config import get_api_base_url
 
 API_BASE_URL = get_api_base_url()
-API_TIMEOUT = 15
-API_TIMEOUT_LONG = 60
+# Requests timeout = (connect timeout, read timeout)
+# Keep these relatively short so the UI fails fast when the backend is wedged.
+API_TIMEOUT = (3, 12)
+API_TIMEOUT_LONG = (3, 25)
 
 
 @st.cache_data(ttl=300)
@@ -346,7 +348,7 @@ def fetch_outlet_profile(domain: str):
         return None
 
 
-def send_access_request(name: str, email: str, message: str) -> bool:
+def send_access_request(name: str, email: str, message: str) -> str:
     """Send access request to backend for email delivery."""
     try:
         response = requests.post(
@@ -355,10 +357,14 @@ def send_access_request(name: str, email: str, message: str) -> bool:
             timeout=10,
         )
         response.raise_for_status()
-        return True
+        payload = response.json() if response.content else {}
+        status = str(payload.get("status", "sent")).lower()
+        if status not in {"sent", "queued"}:
+            status = "sent"
+        return status
     except Exception as exc:
         st.error(f"Error sending request: {exc}")
-        return False
+        return "error"
 
 
 @st.cache_data(ttl=300)
@@ -384,9 +390,68 @@ def fetch_categories(country: Optional[str] = None, partisan: Optional[str] = No
 
 
 @st.cache_data(ttl=300)
+def fetch_concentration_metrics(
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    top_n: int = 5,
+):
+    """Fetch concentration metrics (Top-N share, HHI, ENP)."""
+    try:
+        params = {"top_n": top_n}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/concentration",
+            params=params,
+            timeout=API_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching concentration metrics: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_partisan_mix(
+    country: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Fetch partisan composition and unknown diagnostics."""
+    try:
+        params = {}
+        if country:
+            params["country"] = country
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/partisan-mix",
+            params=params,
+            timeout=API_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching partisan mix: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
 def fetch_categories_over_time(
     country: Optional[str] = None,
     partisan: Optional[str] = None,
+    outlets: Optional[List[str]] = None,
     granularity: str = "month",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
@@ -399,6 +464,8 @@ def fetch_categories_over_time(
             params["country"] = country
         if partisan:
             params["partisan"] = partisan
+        if outlets:
+            params["outlets"] = ",".join(outlets) if isinstance(outlets, list) else outlets
         if date_from:
             params["date_from"] = date_from
         if date_to:
@@ -413,6 +480,41 @@ def fetch_categories_over_time(
         return response.json()
     except Exception as exc:
         st.error(f"Error fetching category trends: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def fetch_topic_similarity(
+    level: str = "country",
+    country: Optional[str] = None,
+    partisan: Optional[str] = None,
+    outlets: Optional[List[str]] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit_topics: int = 12,
+):
+    """Fetch pairwise topic similarity matrices (cosine and JSD)."""
+    try:
+        params = {"level": level, "limit_topics": limit_topics}
+        if country:
+            params["country"] = country
+        if partisan:
+            params["partisan"] = partisan
+        if outlets:
+            params["outlets"] = ",".join(outlets) if isinstance(outlets, list) else outlets
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
+        response = requests.get(
+            f"{API_BASE_URL}/api/stats/topic-similarity",
+            params=params,
+            timeout=API_TIMEOUT_LONG,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching topic similarity: {exc}")
         return None
 
 
