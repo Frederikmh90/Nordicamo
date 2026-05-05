@@ -61,6 +61,10 @@ def recent_years(latest_year: int, count: int = 4) -> list[int]:
     return list(range(latest_year - count + 1, latest_year + 1))
 
 
+def country_year_label(country: str, year: int | str) -> str:
+    return f"{str(country).capitalize()}<br>{year}"
+
+
 def normalize_country_view(view: str | None) -> str:
     if view in COUNTRY_VIEW_OPTIONS:
         return view
@@ -428,55 +432,70 @@ def _render_compare_mode(overview: dict | None) -> None:
     with left:
         with st.container(border=True):
             st.subheader("Partisanship Mix by Country")
+            mix_years = recent_years(year_max)
+            mix_period = f"{mix_years[0]}-{mix_years[-1]}"
             _chart_context(
-                "What share of each country's indexed output comes from each outlet orientation?",
+                "How has each country's outlet-orientation mix developed over the last four indexed years?",
                 "percent of articles",
-                ("Period", period),
+                ("Period", mix_period),
                 ("Orientation", "All orientations"),
             )
             partisan_rows = []
             for ctry in COUNTRIES:
-                mix = fetch_partisan_mix(country=ctry, date_from=date_from, date_to=date_to)
-                if mix and mix.get("data"):
-                    for row in mix["data"]:
-                        partisan_rows.append(
-                            {
-                                "country": ctry.capitalize(),
-                                "partisan": row.get("partisan"),
-                                "share": float(row.get("share", 0.0)) * 100.0,
-                            }
-                        )
+                for year in mix_years:
+                    mix = fetch_partisan_mix(
+                        country=ctry,
+                        date_from=f"{year}-01-01",
+                        date_to=f"{year}-12-31",
+                    )
+                    if mix and mix.get("data"):
+                        for row in mix["data"]:
+                            partisan_rows.append(
+                                {
+                                    "country": ctry.capitalize(),
+                                    "year": str(year),
+                                    "country_year": country_year_label(ctry, year),
+                                    "partisan": row.get("partisan"),
+                                    "share": float(row.get("share", 0.0)) * 100.0,
+                                }
+                            )
             if partisan_rows:
                 df_partisan = pd.DataFrame(partisan_rows)
-                # Re-normalize displayed categories so each country sums to 100%.
-                country_totals = df_partisan.groupby("country")["share"].transform("sum")
+                # Re-normalize displayed categories so each country-year bar sums to 100%.
+                country_totals = df_partisan.groupby("country_year")["share"].transform("sum")
                 df_partisan["share"] = (df_partisan["share"] / country_totals * 100.0).fillna(0.0)
+                category_order = [
+                    country_year_label(country, year)
+                    for country in COUNTRIES
+                    for year in mix_years
+                ]
                 fig_partisan = px.bar(
                     df_partisan,
-                    x="share",
-                    y="country",
+                    x="country_year",
+                    y="share",
                     color="partisan",
-                    orientation="h",
+                    category_orders={"country_year": category_order},
                     color_discrete_map={"Right": "#0066CC", "Left": "#DC143C", "Other": "#2ca02c"},
                 )
                 fig_partisan.update_layout(
-                    xaxis_title="Share (%)",
-                    yaxis_title="",
+                    xaxis_title="",
+                    yaxis_title="Share (%)",
                     height=430,
-                    xaxis=dict(range=[0, 100]),
+                    yaxis=dict(range=[0, 100]),
                     barmode="stack",
                     legend=dict(
                         orientation="h",
-                        yanchor="top",
-                        y=-0.2,
+                        yanchor="bottom",
+                        y=1.05,
                         xanchor="center",
                         x=0.5,
                         title_text="Partisan",
                         font=dict(size=14),
                         title_font=dict(size=14),
                     ),
-                    margin=dict(b=80),
+                    margin=dict(t=80, b=95),
                 )
+                fig_partisan.update_xaxes(tickangle=0, automargin=True)
                 _plot(fig_partisan)
             else:
                 st.info("No partisan data available for this selection.")

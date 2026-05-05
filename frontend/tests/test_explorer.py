@@ -43,6 +43,11 @@ class TestExplorerHelpers(unittest.TestCase):
 
         self.assertEqual(recent_years(2026), [2023, 2024, 2025, 2026])
 
+    def test_country_year_label_wraps_country_and_year(self):
+        from pages.explorer import country_year_label
+
+        self.assertEqual(country_year_label("denmark", 2026), "Denmark<br>2026")
+
     def test_country_view_to_state(self):
         from pages.explorer import (
             COUNTRY_VIEW_COMPARE,
