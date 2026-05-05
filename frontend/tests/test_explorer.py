@@ -48,6 +48,19 @@ class TestExplorerHelpers(unittest.TestCase):
 
         self.assertEqual(country_year_label("denmark", 2026), "Denmark<br>2026")
 
+    def test_country_year_multicategory_axis_groups_years_under_country(self):
+        from pages.explorer import country_year_axis_pairs, country_year_multicategory_axis
+
+        pairs = country_year_axis_pairs(["denmark", "sweden"], [2025, 2026])
+        self.assertEqual(
+            pairs,
+            [("Denmark", "2025"), ("Denmark", "2026"), ("Sweden", "2025"), ("Sweden", "2026")],
+        )
+        self.assertEqual(
+            country_year_multicategory_axis(pairs),
+            [["Denmark", "Denmark", "Sweden", "Sweden"], ["2025", "2026", "2025", "2026"]],
+        )
+
     def test_country_view_to_state(self):
         from pages.explorer import (
             COUNTRY_VIEW_COMPARE,
@@ -109,6 +122,23 @@ class TestExplorerHelpers(unittest.TestCase):
         self.assertEqual(matrix.loc["denmark", "denmark"], 1.0)
         self.assertEqual(matrix.loc["sweden", "denmark"], 0.8)
         self.assertEqual(matrix.loc["norway", "denmark"], 0.6)
+
+    def test_similarity_helpers_mask_diagonal_and_scale_cross_country_values(self):
+        from pages.explorer import _mask_matrix_diagonal, _similarity_color_bounds
+
+        matrix = pd.DataFrame(
+            [[1.0, 0.91, 0.96], [0.91, 1.0, 0.94], [0.96, 0.94, 1.0]],
+            index=["Denmark", "Sweden", "Norway"],
+            columns=["Denmark", "Sweden", "Norway"],
+        )
+        display_matrix = _mask_matrix_diagonal(matrix)
+        self.assertTrue(pd.isna(display_matrix.loc["Denmark", "Denmark"]))
+        self.assertEqual(display_matrix.loc["Denmark", "Norway"], 0.96)
+
+        zmin, zmax = _similarity_color_bounds(display_matrix)
+        self.assertLess(zmin, 0.91)
+        self.assertGreater(zmax, 0.96)
+        self.assertLessEqual(zmax, 1.0)
 
     def test_wrap_two_line_label(self):
         from pages.explorer import _wrap_two_line_label

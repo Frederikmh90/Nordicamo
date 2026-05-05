@@ -65,6 +65,14 @@ def country_year_label(country: str, year: int | str) -> str:
     return f"{str(country).capitalize()}<br>{year}"
 
 
+def country_year_axis_pairs(countries: list[str], years: list[int]) -> list[tuple[str, str]]:
+    return [(country.capitalize(), str(year)) for country in countries for year in years]
+
+
+def country_year_multicategory_axis(pairs: list[tuple[str, str]]) -> list[list[str]]:
+    return [[country for country, _ in pairs], [year for _, year in pairs]]
+
+
 def normalize_country_view(view: str | None) -> str:
     if view in COUNTRY_VIEW_OPTIONS:
         return view
@@ -126,6 +134,36 @@ def _matrix_records_to_df(records: list[dict], entities: list[str]) -> pd.DataFr
             matrix.loc[a, b] = value
             matrix.loc[b, a] = value
     return matrix
+
+
+def _mask_matrix_diagonal(matrix: pd.DataFrame) -> pd.DataFrame:
+    display_matrix = matrix.copy()
+    diagonal_length = min(len(display_matrix.index), len(display_matrix.columns))
+    for idx in range(diagonal_length):
+        display_matrix.iat[idx, idx] = float("nan")
+    return display_matrix
+
+
+def _off_diagonal_values(matrix: pd.DataFrame) -> list[float]:
+    values = []
+    for row_idx, _ in enumerate(matrix.index):
+        for col_idx, _ in enumerate(matrix.columns):
+            if row_idx == col_idx:
+                continue
+            value = matrix.iat[row_idx, col_idx]
+            if pd.notna(value):
+                values.append(float(value))
+    return values
+
+
+def _similarity_color_bounds(matrix: pd.DataFrame) -> tuple[float, float]:
+    values = _off_diagonal_values(matrix)
+    if not values:
+        return 0.0, 1.0
+    low = min(values)
+    high = max(values)
+    padding = max(0.01, (high - low) * 0.12)
+    return max(0.0, low - padding), min(1.0, high + padding)
 
 
 def _plot(fig: go.Figure) -> None:
@@ -428,131 +466,153 @@ def _render_compare_mode(overview: dict | None) -> None:
         )
         _plot(fig)
 
-    left, right = st.columns(2)
-    with left:
-        with st.container(border=True):
-            st.subheader("Partisanship Mix by Country")
-            mix_years = recent_years(year_max)
-            mix_period = f"{mix_years[0]}-{mix_years[-1]}"
-            _chart_context(
-                "How has each country's outlet-orientation mix developed over the last four indexed years?",
-                "percent of articles",
-                ("Period", mix_period),
-                ("Orientation", "All orientations"),
-            )
-            partisan_rows = []
-            for ctry in COUNTRIES:
-                for year in mix_years:
-                    mix = fetch_partisan_mix(
-                        country=ctry,
-                        date_from=f"{year}-01-01",
-                        date_to=f"{year}-12-31",
-                    )
-                    if mix and mix.get("data"):
-                        for row in mix["data"]:
-                            partisan_rows.append(
-                                {
-                                    "country": ctry.capitalize(),
-                                    "year": str(year),
-                                    "country_year": country_year_label(ctry, year),
-                                    "partisan": row.get("partisan"),
-                                    "share": float(row.get("share", 0.0)) * 100.0,
-                                }
-                            )
-            if partisan_rows:
-                df_partisan = pd.DataFrame(partisan_rows)
-                # Re-normalize displayed categories so each country-year bar sums to 100%.
-                country_totals = df_partisan.groupby("country_year")["share"].transform("sum")
-                df_partisan["share"] = (df_partisan["share"] / country_totals * 100.0).fillna(0.0)
-                category_order = [
-                    country_year_label(country, year)
-                    for country in COUNTRIES
-                    for year in mix_years
-                ]
-                fig_partisan = px.bar(
-                    df_partisan,
-                    x="country_year",
-                    y="share",
-                    color="partisan",
-                    category_orders={"country_year": category_order},
-                    color_discrete_map={"Right": "#0066CC", "Left": "#DC143C", "Other": "#2ca02c"},
+    with st.container(border=True):
+        st.subheader("Partisanship Mix by Country")
+        mix_years = recent_years(year_max)
+        mix_period = f"{mix_years[0]}-{mix_years[-1]}"
+        _chart_context(
+            "How has each country's outlet-orientation mix developed over the last four indexed years?",
+            "percent of articles",
+            ("Period", mix_period),
+            ("Orientation", "All orientations"),
+        )
+        partisan_rows = []
+        for ctry in COUNTRIES:
+            for year in mix_years:
+                mix = fetch_partisan_mix(
+                    country=ctry,
+                    date_from=f"{year}-01-01",
+                    date_to=f"{year}-12-31",
                 )
-                fig_partisan.update_layout(
-                    xaxis_title="",
-                    yaxis_title="Share (%)",
-                    height=430,
-                    yaxis=dict(range=[0, 100]),
-                    barmode="stack",
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.05,
-                        xanchor="center",
-                        x=0.5,
-                        title_text="Partisan",
-                        font=dict(size=14),
-                        title_font=dict(size=14),
-                    ),
-                    margin=dict(t=80, b=95),
-                )
-                fig_partisan.update_xaxes(tickangle=0, automargin=True)
-                _plot(fig_partisan)
-            else:
-                st.info("No partisan data available for this selection.")
-    with right:
-        with st.container(border=True):
-            st.subheader("Outlet Diversity")
-            diversity_years = recent_years(year_max)
-            diversity_period = f"{diversity_years[0]}-{diversity_years[-1]}"
-            _chart_context(
-                "How has outlet diversity developed over the last four indexed years?",
-                "effective outlet count (1/HHI)",
-                ("Period", diversity_period),
-                ("Orientation", partisan_label),
-            )
-            st.caption(
-                "HHI measures concentration by summing squared outlet shares. Here it is inverted (1/HHI), so the number reads like the approximate count of equally sized outlets behind the observed output. Higher values mean a more distributed outlet landscape; lower values mean a few outlets dominate."
-            )
-            concentration_rows = []
-            for ctry in COUNTRIES:
-                for year in diversity_years:
-                    metrics = fetch_concentration_metrics(
-                        country=ctry,
-                        partisan=partisan_filter,
-                        date_from=f"{year}-01-01",
-                        date_to=f"{year}-12-31",
-                        top_n=5,
-                    )
-                    if metrics:
-                        concentration_rows.append(
+                if mix and mix.get("data"):
+                    for row in mix["data"]:
+                        partisan_rows.append(
                             {
                                 "country": ctry.capitalize(),
                                 "year": str(year),
-                                "enp": float(metrics.get("enp", 0.0)),
+                                "partisan": row.get("partisan"),
+                                "share": float(row.get("share", 0.0)) * 100.0,
                             }
                         )
-            if concentration_rows:
-                df_concentration = pd.DataFrame(concentration_rows)
-                df_concentration = df_concentration.rename(columns={"enp": "effective_outlet_count"})
-                fig_concentration = px.bar(
-                    df_concentration,
-                    x="country",
-                    y="effective_outlet_count",
-                    color="year",
-                    barmode="group",
-                    color_discrete_sequence=px.colors.qualitative.Safe,
+        if partisan_rows:
+            df_partisan = pd.DataFrame(partisan_rows)
+            # Re-normalize displayed categories so each country-year bar sums to 100%.
+            country_totals = df_partisan.groupby(["country", "year"])["share"].transform("sum")
+            df_partisan["share"] = (df_partisan["share"] / country_totals * 100.0).fillna(0.0)
+            axis_pairs = country_year_axis_pairs(COUNTRIES, mix_years)
+            x_axis = country_year_multicategory_axis(axis_pairs)
+            color_map = {"Right": "#0066CC", "Left": "#DC143C", "Other": "#2ca02c"}
+            partisan_order = [
+                label
+                for label in ["Right", "Left", "Other"]
+                if label in set(df_partisan["partisan"].dropna())
+            ]
+            extra_partisans = [
+                str(label)
+                for label in df_partisan["partisan"].dropna().unique()
+                if label not in partisan_order
+            ]
+            fig_partisan = go.Figure()
+            for partisan in partisan_order + extra_partisans:
+                rows = df_partisan[df_partisan["partisan"] == partisan]
+                shares_by_group = {
+                    (row["country"], row["year"]): float(row["share"])
+                    for _, row in rows.iterrows()
+                }
+                fig_partisan.add_trace(
+                    go.Bar(
+                        x=x_axis,
+                        y=[
+                            shares_by_group.get((country, year), 0.0)
+                            for country, year in axis_pairs
+                        ],
+                        customdata=axis_pairs,
+                        name=partisan,
+                        marker_color=color_map.get(partisan),
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            "Year: %{customdata[1]}<br>"
+                            f"Orientation: {partisan}<br>"
+                            "Share: %{y:.1f}%<extra></extra>"
+                        ),
+                    )
                 )
-                fig_concentration.update_layout(
-                    height=430,
-                    yaxis_title="Effective outlet count",
-                    xaxis_title="",
-                    legend_title_text="Year",
-                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
+            fig_partisan.update_layout(
+                xaxis_title="",
+                yaxis_title="Share (%)",
+                height=430,
+                yaxis=dict(range=[0, 100]),
+                barmode="stack",
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.05,
+                    xanchor="center",
+                    x=0.5,
+                    title_text="Partisan",
+                    font=dict(size=14),
+                    title_font=dict(size=14),
+                ),
+                margin=dict(t=80, b=95),
+            )
+            fig_partisan.update_xaxes(type="multicategory", tickangle=0, automargin=True)
+            _plot(fig_partisan)
+        else:
+            st.info("No partisan data available for this selection.")
+
+    with st.container(border=True):
+        st.subheader("Outlet Diversity")
+        diversity_years = recent_years(year_max)
+        diversity_period = f"{diversity_years[0]}-{diversity_years[-1]}"
+        _chart_context(
+            "How has outlet diversity developed over the last four indexed years?",
+            "effective outlet count (1/HHI)",
+            ("Period", diversity_period),
+            ("Orientation", partisan_label),
+        )
+        st.caption(
+            "HHI measures concentration by summing squared outlet shares. Here it is inverted (1/HHI), so the number reads like the approximate count of equally sized outlets behind the observed output. Higher values mean a more distributed outlet landscape; lower values mean a few outlets dominate."
+        )
+        concentration_rows = []
+        for ctry in COUNTRIES:
+            for year in diversity_years:
+                metrics = fetch_concentration_metrics(
+                    country=ctry,
+                    partisan=partisan_filter,
+                    date_from=f"{year}-01-01",
+                    date_to=f"{year}-12-31",
+                    top_n=5,
                 )
-                fig_concentration.update_traces(texttemplate="%{y:.2f}", textposition="outside")
-                _plot(fig_concentration)
-            else:
-                st.info("No concentration data available for this selection.")
+                if metrics:
+                    concentration_rows.append(
+                        {
+                            "country": ctry.capitalize(),
+                            "year": str(year),
+                            "enp": float(metrics.get("enp", 0.0)),
+                        }
+                    )
+        if concentration_rows:
+            df_concentration = pd.DataFrame(concentration_rows)
+            df_concentration = df_concentration.rename(columns={"enp": "effective_outlet_count"})
+            fig_concentration = px.bar(
+                df_concentration,
+                x="country",
+                y="effective_outlet_count",
+                color="year",
+                barmode="group",
+                color_discrete_sequence=px.colors.qualitative.Safe,
+            )
+            fig_concentration.update_layout(
+                height=430,
+                yaxis_title="Effective outlet count",
+                xaxis_title="",
+                legend_title_text="Year",
+                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
+            )
+            fig_concentration.update_traces(texttemplate="%{y:.2f}", textposition="outside")
+            _plot(fig_concentration)
+        else:
+            st.info("No concentration data available for this selection.")
 
     with st.expander("Advanced topic diagnostics", expanded=False):
         with st.container(border=True):
@@ -613,7 +673,7 @@ def _render_compare_mode(overview: dict | None) -> None:
                 ("Orientation", partisan_label),
             )
             st.caption(
-                "Computed from normalized topic-share vectors built from article category counts, not full-text semantics."
+                "Computed from normalized topic-share vectors built from article category counts, not full-text semantics. Self-comparisons are left blank so the color scale focuses on cross-country differences."
             )
             similarity = fetch_topic_similarity(
                 level="country",
@@ -636,17 +696,29 @@ def _render_compare_mode(overview: dict | None) -> None:
                     )
                 matrix = _matrix_records_to_df(records, entities)
                 if not matrix.empty:
-                    zmin = 0.8
-                    zmax = 1.0
-                    colorscale = "Blues"
+                    display_matrix = _mask_matrix_diagonal(matrix)
+                    zmin, zmax = _similarity_color_bounds(display_matrix)
+                    text_matrix = matrix.round(2).astype(str)
+                    diagonal_length = min(len(text_matrix.index), len(text_matrix.columns))
+                    for idx in range(diagonal_length):
+                        text_matrix.iat[idx, idx] = ""
                     heatmap = go.Figure(
                         data=go.Heatmap(
-                            z=matrix.values,
+                            z=display_matrix.values,
                             x=matrix.columns,
                             y=matrix.index,
-                            colorscale=colorscale,
+                            colorscale="Cividis",
                             zmin=zmin,
                             zmax=zmax,
+                            text=text_matrix.values,
+                            texttemplate="%{text}",
+                            hovertemplate=(
+                                "<b>%{y} x %{x}</b><br>"
+                                "Cosine similarity: %{z:.3f}<extra></extra>"
+                            ),
+                            xgap=3,
+                            ygap=3,
+                            colorbar=dict(title="Similarity"),
                         )
                     )
                     heatmap.update_layout(
