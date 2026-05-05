@@ -32,6 +32,17 @@ class TestExplorerHelpers(unittest.TestCase):
 
         self.assertEqual(normalize_country("sweden"), "sweden")
 
+    def test_country_landscape_label(self):
+        from pages.explorer import country_landscape_label
+
+        self.assertEqual(country_landscape_label("denmark"), "Danish Alternative Media Landscape")
+        self.assertEqual(country_landscape_label("sweden"), "Swedish Alternative Media Landscape")
+
+    def test_recent_years_returns_last_four_years(self):
+        from pages.explorer import recent_years
+
+        self.assertEqual(recent_years(2026), [2023, 2024, 2025, 2026])
+
     def test_country_view_to_state(self):
         from pages.explorer import (
             COUNTRY_VIEW_COMPARE,

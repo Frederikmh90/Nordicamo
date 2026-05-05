@@ -32,6 +32,13 @@ COUNTRY_COLORS = {
     "finland": "#003580",
 }
 
+COUNTRY_LANDSCAPE_LABELS = {
+    "denmark": "Danish Alternative Media Landscape",
+    "sweden": "Swedish Alternative Media Landscape",
+    "norway": "Norwegian Alternative Media Landscape",
+    "finland": "Finnish Alternative Media Landscape",
+}
+
 
 def normalize_explorer_mode(mode: str | None) -> str:
     if mode in {MODE_COMPARE, MODE_DEEP_DIVE}:
@@ -43,6 +50,15 @@ def normalize_country(country: str | None) -> str:
     if country in COUNTRIES:
         return country
     return "denmark"
+
+
+def country_landscape_label(country: str | None) -> str:
+    normalized = normalize_country(country)
+    return COUNTRY_LANDSCAPE_LABELS[normalized]
+
+
+def recent_years(latest_year: int, count: int = 4) -> list[int]:
+    return list(range(latest_year - count + 1, latest_year + 1))
 
 
 def normalize_country_view(view: str | None) -> str:
@@ -467,10 +483,12 @@ def _render_compare_mode(overview: dict | None) -> None:
     with right:
         with st.container(border=True):
             st.subheader("Outlet Diversity")
+            diversity_years = recent_years(year_max)
+            diversity_period = f"{diversity_years[0]}-{diversity_years[-1]}"
             _chart_context(
-                "How many equally sized outlets would produce the same concentration pattern?",
+                "How has outlet diversity developed over the last four indexed years?",
                 "effective outlet count (1/HHI)",
-                ("Period", period),
+                ("Period", diversity_period),
                 ("Orientation", partisan_label),
             )
             st.caption(
@@ -478,20 +496,22 @@ def _render_compare_mode(overview: dict | None) -> None:
             )
             concentration_rows = []
             for ctry in COUNTRIES:
-                metrics = fetch_concentration_metrics(
-                    country=ctry,
-                    partisan=partisan_filter,
-                    date_from=date_from,
-                    date_to=date_to,
-                    top_n=5,
-                )
-                if metrics:
-                    concentration_rows.append(
-                        {
-                            "country": ctry.capitalize(),
-                            "enp": float(metrics.get("enp", 0.0)),
-                        }
+                for year in diversity_years:
+                    metrics = fetch_concentration_metrics(
+                        country=ctry,
+                        partisan=partisan_filter,
+                        date_from=f"{year}-01-01",
+                        date_to=f"{year}-12-31",
+                        top_n=5,
                     )
+                    if metrics:
+                        concentration_rows.append(
+                            {
+                                "country": ctry.capitalize(),
+                                "year": str(year),
+                                "enp": float(metrics.get("enp", 0.0)),
+                            }
+                        )
             if concentration_rows:
                 df_concentration = pd.DataFrame(concentration_rows)
                 df_concentration = df_concentration.rename(columns={"enp": "effective_outlet_count"})
@@ -499,19 +519,16 @@ def _render_compare_mode(overview: dict | None) -> None:
                     df_concentration,
                     x="country",
                     y="effective_outlet_count",
-                    color="country",
-                    color_discrete_map={
-                        "Denmark": COUNTRY_COLORS["denmark"],
-                        "Sweden": COUNTRY_COLORS["sweden"],
-                        "Norway": COUNTRY_COLORS["norway"],
-                        "Finland": COUNTRY_COLORS["finland"],
-                    },
+                    color="year",
+                    barmode="group",
+                    color_discrete_sequence=px.colors.qualitative.Safe,
                 )
                 fig_concentration.update_layout(
                     height=430,
                     yaxis_title="Effective outlet count",
                     xaxis_title="",
-                    showlegend=False,
+                    legend_title_text="Year",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
                 )
                 fig_concentration.update_traces(texttemplate="%{y:.2f}", textposition="outside")
                 _plot(fig_concentration)
@@ -632,7 +649,7 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
     country = normalize_country(st.session_state.get("quick_country") or st.session_state.get("deep_country"))
     st.session_state["quick_country"] = country
     st.session_state["deep_country"] = country
-    st.subheader(f"{country.capitalize()} Deep Dive")
+    st.subheader(country_landscape_label(country))
 
     view_type = st.radio(
         "Analysis view",
@@ -866,193 +883,193 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
     with st.expander("Advanced outlet and topic diagnostics", expanded=False):
         with st.container(border=True):
             st.subheader("Topics by Media")
-        _chart_context(
-            "How do selected outlets differ in their topic profiles?",
-            "article count or percent",
-            ("Country", country.capitalize()),
-            ("Period", period),
-            ("Orientation", partisan_label),
-        )
-        outlet_options_data = fetch_top_outlets(
-            country=country,
-            partisan=partisan_filter,
-            date_from=date_from,
-            date_to=date_to,
-            limit=20,
-        )
-        outlet_options = []
-        if outlet_options_data and outlet_options_data.get("data"):
-            outlet_options = [row.get("domain") for row in outlet_options_data["data"] if row.get("domain")]
-
-        selected_media = st.multiselect(
-            "Select Media Outlets",
-            options=outlet_options,
-            default=outlet_options[:3] if len(outlet_options) >= 3 else outlet_options,
-            key="deep_topics_by_media_outlets",
-        )
-        topics_value_mode = st.radio(
-            "Metric",
-            options=["Absolute Topic Counts", "Share of Outlet Topics (%)"],
-            index=0,
-            horizontal=True,
-            key="deep_topics_by_media_metric",
-        )
-
-        if not selected_media:
-            st.info("Select at least one outlet to compare topic profiles.")
-        else:
-            topic_rows = []
-            for outlet in selected_media:
-                outlet_topics = fetch_categories_over_time(
-                    country=country,
-                    partisan=partisan_filter,
-                    outlets=[outlet],
-                    granularity=granularity.lower(),
-                    date_from=date_from,
-                    date_to=date_to,
-                    limit=8,
-                )
-                if not outlet_topics or not outlet_topics.get("data"):
-                    continue
-                df_outlet_topics = pd.DataFrame(outlet_topics["data"])
-                if df_outlet_topics.empty or not {"category", "count"}.issubset(df_outlet_topics.columns):
-                    continue
-                aggregated = (
-                    df_outlet_topics.groupby("category", as_index=False)["count"]
-                    .sum()
-                    .sort_values("count", ascending=False)
-                )
-                for _, row in aggregated.iterrows():
-                    topic_rows.append(
-                        {
-                            "outlet": outlet,
-                            "category": row["category"],
-                            "count": int(row["count"]),
-                        }
-                    )
-
-            if topic_rows:
-                df_topics_by_media = pd.DataFrame(topic_rows)
-                available_topics = (
-                    df_topics_by_media.groupby("category", as_index=False)["count"]
-                    .sum()
-                    .sort_values("count", ascending=False)["category"]
-                    .tolist()
-                )
-                default_topics = available_topics[:10]
-                selected_topics = st.multiselect(
-                    "Select Topics",
-                    options=available_topics,
-                    default=default_topics,
-                    key="deep_topics_by_media_topics",
-                )
-                if selected_topics:
-                    df_topics_by_media = df_topics_by_media[
-                        df_topics_by_media["category"].isin(selected_topics)
-                    ].copy()
-                else:
-                    df_topics_by_media = df_topics_by_media.iloc[0:0]
-
-            if not topic_rows or df_topics_by_media.empty:
-                st.info("No topic-by-media data available for this selection.")
-            else:
-                df_topics_by_media, y_label = topics_metric_transform(
-                    df_topics_by_media,
-                    mode=topics_value_mode,
-                )
-                df_topics_by_media["category_label"] = df_topics_by_media["category"].apply(_wrap_two_line_label)
-                fig_topics_media = px.bar(
-                    df_topics_by_media,
-                    x="category_label",
-                    y="value",
-                    color="outlet",
-                    barmode="group",
-                )
-                fig_topics_media.update_layout(
-                    title="",
-                    xaxis_title="Topic",
-                    yaxis_title=y_label,
-                    height=420,
-                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
-                    margin=dict(t=90, b=130),
-                )
-                fig_topics_media.update_xaxes(tickangle=0, automargin=True)
-                _plot(fig_topics_media)
-
-    with st.container(border=True):
-        st.subheader("Agenda Similarity (Outlets)")
-        _chart_context(
-            "How similar are selected outlet agendas based on relative topic distributions?",
-            "cosine similarity",
-            ("Country", country.capitalize()),
-            ("Period", period),
-            ("Orientation", partisan_label),
-        )
-        st.caption("Computed from normalized topic-share vectors built from article category counts, not full-text semantics.")
-        similarity_outlet_options_data = fetch_top_outlets(
-            country=country,
-            partisan=partisan_filter,
-            date_from=date_from,
-            date_to=date_to,
-            limit=12,
-        )
-        similarity_outlet_options = []
-        if similarity_outlet_options_data and similarity_outlet_options_data.get("data"):
-            similarity_outlet_options = [
-                row.get("domain") for row in similarity_outlet_options_data["data"] if row.get("domain")
-            ]
-        selected_similarity_outlets = st.multiselect(
-            "Select Outlets for Similarity",
-            options=similarity_outlet_options,
-            default=similarity_outlet_options[:5] if len(similarity_outlet_options) >= 5 else similarity_outlet_options,
-            key="deep_similarity_outlets",
-        )
-        if len(selected_similarity_outlets) < 2:
-            st.info("Select at least two outlets to compute pairwise similarity.")
-        else:
-            similarity = fetch_topic_similarity(
-                level="outlet",
+            _chart_context(
+                "How do selected outlets differ in their topic profiles?",
+                "article count or percent",
+                ("Country", country.capitalize()),
+                ("Period", period),
+                ("Orientation", partisan_label),
+            )
+            outlet_options_data = fetch_top_outlets(
                 country=country,
                 partisan=partisan_filter,
-                outlets=selected_similarity_outlets,
                 date_from=date_from,
                 date_to=date_to,
-                limit_topics=12,
+                limit=20,
             )
-            if similarity and similarity.get("entities"):
-                entities = [str(e) for e in similarity.get("entities", [])]
-                raw_records = similarity.get("cosine", [])
-                records = [
-                    {
-                        "entity_a": str(row.get("entity_a", "")),
-                        "entity_b": str(row.get("entity_b", "")),
-                        "value": float(row.get("value", 0.0)),
-                    }
-                    for row in raw_records
-                ]
-                matrix = _matrix_records_to_df(records, entities)
-                if not matrix.empty:
-                    heatmap = go.Figure(
-                        data=go.Heatmap(
-                            z=matrix.values,
-                            x=matrix.columns,
-                            y=matrix.index,
-                            colorscale="Blues",
-                            zmin=0.5,
-                            zmax=1.0,
-                        )
-                    )
-                    heatmap.update_layout(
-                        height=420,
-                        xaxis_title="",
-                        yaxis_title="",
-                        margin=dict(t=20, b=20, l=20, r=20),
-                    )
-                    _plot(heatmap)
-                else:
-                    st.info("No similarity matrix available for selected outlets.")
+            outlet_options = []
+            if outlet_options_data and outlet_options_data.get("data"):
+                outlet_options = [row.get("domain") for row in outlet_options_data["data"] if row.get("domain")]
+
+            selected_media = st.multiselect(
+                "Select Media Outlets",
+                options=outlet_options,
+                default=outlet_options[:3] if len(outlet_options) >= 3 else outlet_options,
+                key="deep_topics_by_media_outlets",
+            )
+            topics_value_mode = st.radio(
+                "Metric",
+                options=["Absolute Topic Counts", "Share of Outlet Topics (%)"],
+                index=0,
+                horizontal=True,
+                key="deep_topics_by_media_metric",
+            )
+
+            if not selected_media:
+                st.info("Select at least one outlet to compare topic profiles.")
             else:
-                st.info("No similarity data available for selected outlets.")
+                topic_rows = []
+                for outlet in selected_media:
+                    outlet_topics = fetch_categories_over_time(
+                        country=country,
+                        partisan=partisan_filter,
+                        outlets=[outlet],
+                        granularity=granularity.lower(),
+                        date_from=date_from,
+                        date_to=date_to,
+                        limit=8,
+                    )
+                    if not outlet_topics or not outlet_topics.get("data"):
+                        continue
+                    df_outlet_topics = pd.DataFrame(outlet_topics["data"])
+                    if df_outlet_topics.empty or not {"category", "count"}.issubset(df_outlet_topics.columns):
+                        continue
+                    aggregated = (
+                        df_outlet_topics.groupby("category", as_index=False)["count"]
+                        .sum()
+                        .sort_values("count", ascending=False)
+                    )
+                    for _, row in aggregated.iterrows():
+                        topic_rows.append(
+                            {
+                                "outlet": outlet,
+                                "category": row["category"],
+                                "count": int(row["count"]),
+                            }
+                        )
+
+                if topic_rows:
+                    df_topics_by_media = pd.DataFrame(topic_rows)
+                    available_topics = (
+                        df_topics_by_media.groupby("category", as_index=False)["count"]
+                        .sum()
+                        .sort_values("count", ascending=False)["category"]
+                        .tolist()
+                    )
+                    default_topics = available_topics[:10]
+                    selected_topics = st.multiselect(
+                        "Select Topics",
+                        options=available_topics,
+                        default=default_topics,
+                        key="deep_topics_by_media_topics",
+                    )
+                    if selected_topics:
+                        df_topics_by_media = df_topics_by_media[
+                            df_topics_by_media["category"].isin(selected_topics)
+                        ].copy()
+                    else:
+                        df_topics_by_media = df_topics_by_media.iloc[0:0]
+
+                if not topic_rows or df_topics_by_media.empty:
+                    st.info("No topic-by-media data available for this selection.")
+                else:
+                    df_topics_by_media, y_label = topics_metric_transform(
+                        df_topics_by_media,
+                        mode=topics_value_mode,
+                    )
+                    df_topics_by_media["category_label"] = df_topics_by_media["category"].apply(_wrap_two_line_label)
+                    fig_topics_media = px.bar(
+                        df_topics_by_media,
+                        x="category_label",
+                        y="value",
+                        color="outlet",
+                        barmode="group",
+                    )
+                    fig_topics_media.update_layout(
+                        title="",
+                        xaxis_title="Topic",
+                        yaxis_title=y_label,
+                        height=420,
+                        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
+                        margin=dict(t=90, b=130),
+                    )
+                    fig_topics_media.update_xaxes(tickangle=0, automargin=True)
+                    _plot(fig_topics_media)
+
+        with st.container(border=True):
+            st.subheader("Agenda Similarity (Outlets)")
+            _chart_context(
+                "How similar are selected outlet agendas based on relative topic distributions?",
+                "cosine similarity",
+                ("Country", country.capitalize()),
+                ("Period", period),
+                ("Orientation", partisan_label),
+            )
+            st.caption("Computed from normalized topic-share vectors built from article category counts, not full-text semantics.")
+            similarity_outlet_options_data = fetch_top_outlets(
+                country=country,
+                partisan=partisan_filter,
+                date_from=date_from,
+                date_to=date_to,
+                limit=12,
+            )
+            similarity_outlet_options = []
+            if similarity_outlet_options_data and similarity_outlet_options_data.get("data"):
+                similarity_outlet_options = [
+                    row.get("domain") for row in similarity_outlet_options_data["data"] if row.get("domain")
+                ]
+            selected_similarity_outlets = st.multiselect(
+                "Select Outlets for Similarity",
+                options=similarity_outlet_options,
+                default=similarity_outlet_options[:5] if len(similarity_outlet_options) >= 5 else similarity_outlet_options,
+                key="deep_similarity_outlets",
+            )
+            if len(selected_similarity_outlets) < 2:
+                st.info("Select at least two outlets to compute pairwise similarity.")
+            else:
+                similarity = fetch_topic_similarity(
+                    level="outlet",
+                    country=country,
+                    partisan=partisan_filter,
+                    outlets=selected_similarity_outlets,
+                    date_from=date_from,
+                    date_to=date_to,
+                    limit_topics=12,
+                )
+                if similarity and similarity.get("entities"):
+                    entities = [str(e) for e in similarity.get("entities", [])]
+                    raw_records = similarity.get("cosine", [])
+                    records = [
+                        {
+                            "entity_a": str(row.get("entity_a", "")),
+                            "entity_b": str(row.get("entity_b", "")),
+                            "value": float(row.get("value", 0.0)),
+                        }
+                        for row in raw_records
+                    ]
+                    matrix = _matrix_records_to_df(records, entities)
+                    if not matrix.empty:
+                        heatmap = go.Figure(
+                            data=go.Heatmap(
+                                z=matrix.values,
+                                x=matrix.columns,
+                                y=matrix.index,
+                                colorscale="Blues",
+                                zmin=0.5,
+                                zmax=1.0,
+                            )
+                        )
+                        heatmap.update_layout(
+                            height=420,
+                            xaxis_title="",
+                            yaxis_title="",
+                            margin=dict(t=20, b=20, l=20, r=20),
+                        )
+                        _plot(heatmap)
+                    else:
+                        st.info("No similarity matrix available for selected outlets.")
+                else:
+                    st.info("No similarity data available for selected outlets.")
 
     left, right = st.columns(2)
     with left:
