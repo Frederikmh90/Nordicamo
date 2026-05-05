@@ -24,6 +24,16 @@ class TestNavigation(unittest.TestCase):
         self.assertEqual(LEGACY_PAGE_ALIASES["Full Data Access"], "GetAccess")
         self.assertEqual(LEGACY_PAGE_ALIASES["Countries"], "Explorer")
 
+    def test_platform_and_countries_share_dark_blue_nav_color(self):
+        from pathlib import Path
+
+        app_source = Path(__file__).resolve().parents[1] / "app.py"
+        text = app_source.read_text(encoding="utf-8")
+
+        self.assertIn(".nav-link {", text)
+        self.assertIn("color: #0f3855;", text)
+        self.assertNotIn("color: #1b3a53;", text)
+
 
 if __name__ == "__main__":
     unittest.main()

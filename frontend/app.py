@@ -312,11 +312,11 @@ st.markdown("""
         flex-wrap: wrap;
         justify-content: flex-end;
     }
-    .nav-link {
-        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: #1b3a53;
+	    .nav-link {
+	        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
+	        font-size: 0.95rem;
+	        font-weight: 600;
+	        color: #0f3855;
         text-decoration: none;
         padding: 8px 12px;
         border-radius: 8px;
@@ -328,12 +328,13 @@ st.markdown("""
         outline: none;
         box-shadow: none;
     }
-    .nav-link,
-    .nav-link:visited,
-    .nav-link:hover,
-    .nav-link:active {
-        text-decoration: none !important;
-    }
+	    .nav-link,
+	    .nav-link:visited,
+	    .nav-link:hover,
+	    .nav-link:active {
+	        color: #0f3855;
+	        text-decoration: none !important;
+	    }
     .nav-link:focus,
     .nav-link:focus-visible {
         outline: none;
@@ -342,10 +343,10 @@ st.markdown("""
     .nav-link:hover {
         background: #e6eef4;
     }
-    .nav-link.active {
-        color: #0f3855;
-        text-decoration: none;
-    }
+	    .nav-link.active {
+	        color: #0f3855;
+	        text-decoration: none;
+	    }
     .nav-link.cta {
         background: #173f5f;
         border: 1px solid #173f5f;
