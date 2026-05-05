@@ -20,6 +20,7 @@ from services.api import (
 )
 
 COUNTRIES = ["denmark", "sweden", "norway", "finland"]
+ORIENTATION_ORDER = ["Left", "Right", "Other"]
 MODE_COMPARE = "Country Comparison"
 MODE_DEEP_DIVE = "Country Deep Dive"
 COUNTRY_VIEW_COMPARE = "Compare countries"
@@ -71,6 +72,46 @@ def country_year_axis_pairs(countries: list[str], years: list[int]) -> list[tupl
 
 def country_year_multicategory_axis(pairs: list[tuple[str, str]]) -> list[list[str]]:
     return [[country for country, _ in pairs], [year for _, year in pairs]]
+
+
+def normalize_country_orientation_entity(entity: str) -> str:
+    text = str(entity or "").strip()
+    if " - " not in text:
+        return text.capitalize()
+    country, orientation = text.split(" - ", 1)
+    return f"{country.strip().capitalize()} - {orientation.strip().capitalize()}"
+
+
+def country_orientation_entities(entities: list[str]) -> list[str]:
+    normalized_entities = {normalize_country_orientation_entity(entity) for entity in entities}
+    ordered = [
+        f"{country.capitalize()} - {orientation}"
+        for country in COUNTRIES
+        for orientation in ORIENTATION_ORDER
+        if f"{country.capitalize()} - {orientation}" in normalized_entities
+    ]
+    extras = sorted(normalized_entities.difference(ordered))
+    return ordered + extras
+
+
+def country_orientation_axis_labels(entities: list[str]) -> list[str]:
+    return [entity.replace(" - ", "<br>") for entity in entities]
+
+
+def country_orientation_axis_pairs(entities: list[str]) -> list[tuple[str, str]]:
+    pairs = []
+    for entity in entities:
+        if " - " not in entity:
+            pairs.append((entity, ""))
+            continue
+        country, orientation = entity.split(" - ", 1)
+        pairs.append((country, orientation))
+    return pairs
+
+
+def country_orientation_multicategory_axis(entities: list[str]) -> list[list[str]]:
+    pairs = country_orientation_axis_pairs(entities)
+    return [[country for country, _ in pairs], [orientation for _, orientation in pairs]]
 
 
 def normalize_country_view(view: str | None) -> str:
@@ -604,10 +645,33 @@ def _render_compare_mode(overview: dict | None) -> None:
             )
             fig_concentration.update_layout(
                 height=430,
-                yaxis_title="Effective outlet count",
+                yaxis_title="Outlet diversity score (1/HHI)",
                 xaxis_title="",
                 legend_title_text="Year",
                 legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
+                margin=dict(l=105, r=30, t=80, b=60),
+                annotations=[
+                    dict(
+                        x=-0.12,
+                        y=1.02,
+                        xref="paper",
+                        yref="paper",
+                        text="More diverse ↑",
+                        showarrow=False,
+                        font=dict(size=12, color="#2E7D32"),
+                        xanchor="left",
+                    ),
+                    dict(
+                        x=-0.12,
+                        y=-0.12,
+                        xref="paper",
+                        yref="paper",
+                        text="Less diverse ↓",
+                        showarrow=False,
+                        font=dict(size=12, color="#8E3D38"),
+                        xanchor="left",
+                    ),
+                ],
             )
             fig_concentration.update_traces(texttemplate="%{y:.2f}", textposition="outside")
             _plot(fig_concentration)
@@ -665,32 +729,33 @@ def _render_compare_mode(overview: dict | None) -> None:
                 st.info("No topic data available for this selection.")
 
         with st.container(border=True):
-            st.subheader("Agenda Similarity (Countries)")
+            st.subheader("Agenda Similarity (Country x Orientation)")
             _chart_context(
-                "How similar are country agendas based on relative topic distributions?",
+                "How similar are country-orientation agendas based on relative topic distributions?",
                 "cosine similarity",
                 ("Period", period),
-                ("Orientation", partisan_label),
+                ("Orientation layer", "Left, Right, Other"),
             )
             st.caption(
-                "Computed from normalized topic-share vectors built from article category counts, not full-text semantics. Self-comparisons are left blank so the color scale focuses on cross-country differences."
+                "Each cell compares one country-orientation category with another, using normalized topic-share vectors built from article category counts. Self-comparisons are left blank so the color scale focuses on cross-group differences."
             )
             similarity = fetch_topic_similarity(
-                level="country",
-                partisan=partisan_filter,
+                level="country_partisan",
                 date_from=date_from,
                 date_to=date_to,
                 limit_topics=12,
             )
             if similarity and similarity.get("entities"):
-                entities = [str(e).capitalize() for e in similarity.get("entities", [])]
+                entities = country_orientation_entities(
+                    [str(e) for e in similarity.get("entities", [])]
+                )
                 raw_records = similarity.get("cosine", [])
                 records = []
                 for row in raw_records:
                     records.append(
                         {
-                            "entity_a": str(row.get("entity_a", "")).capitalize(),
-                            "entity_b": str(row.get("entity_b", "")).capitalize(),
+                            "entity_a": normalize_country_orientation_entity(row.get("entity_a", "")),
+                            "entity_b": normalize_country_orientation_entity(row.get("entity_b", "")),
                             "value": float(row.get("value", 0.0)),
                         }
                     )
@@ -702,18 +767,24 @@ def _render_compare_mode(overview: dict | None) -> None:
                     diagonal_length = min(len(text_matrix.index), len(text_matrix.columns))
                     for idx in range(diagonal_length):
                         text_matrix.iat[idx, idx] = ""
+                    axis_labels = country_orientation_multicategory_axis(entities)
+                    hover_matrix = [
+                        [f"{row_entity} x {col_entity}" for col_entity in entities]
+                        for row_entity in entities
+                    ]
                     heatmap = go.Figure(
                         data=go.Heatmap(
                             z=display_matrix.values,
-                            x=matrix.columns,
-                            y=matrix.index,
+                            x=axis_labels,
+                            y=axis_labels,
                             colorscale="Cividis",
                             zmin=zmin,
                             zmax=zmax,
                             text=text_matrix.values,
                             texttemplate="%{text}",
+                            customdata=hover_matrix,
                             hovertemplate=(
-                                "<b>%{y} x %{x}</b><br>"
+                                "<b>%{customdata}</b><br>"
                                 "Cosine similarity: %{z:.3f}<extra></extra>"
                             ),
                             xgap=3,
@@ -722,11 +793,13 @@ def _render_compare_mode(overview: dict | None) -> None:
                         )
                     )
                     heatmap.update_layout(
-                        height=420,
+                        height=640,
                         xaxis_title="",
                         yaxis_title="",
-                        margin=dict(t=20, b=20, l=20, r=20),
+                        margin=dict(t=20, b=120, l=120, r=20),
                     )
+                    heatmap.update_xaxes(type="multicategory", tickangle=0, automargin=True)
+                    heatmap.update_yaxes(type="multicategory", autorange="reversed", automargin=True)
                     _plot(heatmap)
                 else:
                     st.info("No similarity matrix available for this selection.")
@@ -1194,7 +1267,7 @@ def show_explorer_page() -> None:
 
     st.markdown(
         "<div class='subtle' style='font-size:1.15rem;'>Compare alternative news media landscapes across Denmark, Finland, Norway, and Sweden, "
-        "or switch to a country deep dive to inspect outlet-level activity, structure, and topics over time. Filters stay scoped to the selected analytical task.</div>",
+        "or switch to a country deep dive to inspect outlet-level activity, structure, and topics over time.</div>",
         unsafe_allow_html=True,
     )
 

@@ -61,6 +61,31 @@ class TestExplorerHelpers(unittest.TestCase):
             [["Denmark", "Denmark", "Sweden", "Sweden"], ["2025", "2026", "2025", "2026"]],
         )
 
+    def test_country_orientation_entities_use_country_then_orientation_order(self):
+        from pages.explorer import (
+            country_orientation_axis_labels,
+            country_orientation_multicategory_axis,
+            country_orientation_entities,
+            normalize_country_orientation_entity,
+        )
+
+        self.assertEqual(normalize_country_orientation_entity("sweden - left"), "Sweden - Left")
+        entities = country_orientation_entities(
+            ["sweden - other", "denmark - right", "sweden - left", "denmark - left"]
+        )
+        self.assertEqual(
+            entities,
+            ["Denmark - Left", "Denmark - Right", "Sweden - Left", "Sweden - Other"],
+        )
+        self.assertEqual(
+            country_orientation_axis_labels(["Denmark - Left", "Sweden - Other"]),
+            ["Denmark<br>Left", "Sweden<br>Other"],
+        )
+        self.assertEqual(
+            country_orientation_multicategory_axis(["Denmark - Left", "Denmark - Right"]),
+            [["Denmark", "Denmark"], ["Left", "Right"]],
+        )
+
     def test_country_view_to_state(self):
         from pages.explorer import (
             COUNTRY_VIEW_COMPARE,

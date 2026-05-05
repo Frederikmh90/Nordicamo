@@ -515,14 +515,21 @@ class StatsService:
         date_to: Optional[str] = None,
         limit_topics: int = 12,
     ) -> Dict[str, Any]:
-        """Get pairwise topic similarity (cosine + JSD) for countries or outlets."""
+        """Get pairwise topic similarity (cosine + JSD) for countries, country-orientations, or outlets."""
         level = (level or "country").lower()
-        if level not in {"country", "outlet"}:
+        if level not in {"country", "country_partisan", "country_orientation", "outlet"}:
             level = "country"
 
-        entity_expr = "LOWER(country)" if level == "country" else "LOWER(domain)"
+        if level == "country":
+            entity_expr = "LOWER(country)"
+        elif level in {"country_partisan", "country_orientation"}:
+            entity_expr = "INITCAP(LOWER(country)) || ' - ' || INITCAP(LOWER(partisan))"
+        else:
+            entity_expr = "LOWER(domain)"
         conditions = ["date IS NOT NULL", f"{entity_expr} IS NOT NULL"]
         params: Dict[str, Any] = {"limit_topics": max(2, min(int(limit_topics), 40))}
+        if level in {"country_partisan", "country_orientation"}:
+            conditions.append("LOWER(partisan) IN ('left', 'right', 'other')")
 
         if country:
             conditions.append("LOWER(country) = LOWER(:country)")

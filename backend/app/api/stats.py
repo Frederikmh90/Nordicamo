@@ -368,7 +368,7 @@ async def get_partisan_mix(
 
 @router.get("/topic-similarity", response_model=TopicSimilarityResponse)
 async def get_topic_similarity(
-    level: str = Query("country", description="Comparison level: country or outlet"),
+    level: str = Query("country", description="Comparison level: country, country_partisan, or outlet"),
     country: Optional[str] = Query(None, description="Country filter (required for outlet level)"),
     partisan: Optional[str] = Query(None, description="Partisan filter"),
     outlets: Optional[str] = Query(None, description="Comma-separated outlet domains"),
@@ -379,8 +379,12 @@ async def get_topic_similarity(
 ):
     """Get pairwise topic-similarity matrices (cosine + JSD)."""
     normalized_level = (level or "country").lower()
-    if normalized_level not in {"country", "outlet"}:
-        raise HTTPException(status_code=400, detail="level must be 'country' or 'outlet'")
+    allowed_levels = {"country", "country_partisan", "country_orientation", "outlet"}
+    if normalized_level not in allowed_levels:
+        raise HTTPException(
+            status_code=400,
+            detail="level must be 'country', 'country_partisan', 'country_orientation', or 'outlet'",
+        )
     if normalized_level == "outlet" and not country:
         raise HTTPException(status_code=400, detail="country is required when level='outlet'")
 

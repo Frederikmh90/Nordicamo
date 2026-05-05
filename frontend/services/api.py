@@ -10,7 +10,7 @@ from config import get_api_base_url
 API_BASE_URL = get_api_base_url()
 # Requests timeout = (connect timeout, read timeout)
 # Keep these relatively short so the UI fails fast when the backend is wedged.
-API_TIMEOUT = (3, 12)
+API_TIMEOUT = (3, 25)
 API_TIMEOUT_LONG = (3, 25)
 
 

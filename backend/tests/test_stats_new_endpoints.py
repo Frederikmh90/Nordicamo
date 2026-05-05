@@ -86,7 +86,12 @@ class TestStatsNewEndpoints(unittest.TestCase):
         self.assertIn("jsd", payload)
         self.assertEqual(payload["topics"], ["Politics", "Economy"])
 
+    def test_topic_similarity_endpoint_accepts_country_partisan_level(self):
+        response = self.client.get("/api/stats/topic-similarity", params={"level": "country_partisan"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["filters"]["level"], "country_partisan")
+
 
 if __name__ == "__main__":
     unittest.main()
-
