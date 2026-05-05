@@ -75,7 +75,10 @@ class TestArticlesServiceHelpers(unittest.TestCase):
         from app.services.articles_service import normalize_outlets
 
         outlets = ["Example.com", "  WWW.Example.org ", "", None]
-        self.assertEqual(normalize_outlets(outlets), ["example.com", "www.example.org"])
+        self.assertEqual(
+            normalize_outlets(outlets),
+            ["example.com", "www.example.com", "www.example.org", "example.org"],
+        )
 
 
 if __name__ == "__main__":

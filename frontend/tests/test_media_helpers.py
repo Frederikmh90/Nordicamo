@@ -57,6 +57,27 @@ class TestMediaHelpers(unittest.TestCase):
         latest = select_latest_articles(response, limit=2)
         self.assertEqual([item["title"] for item in latest], ["A", "B"])
 
+    def test_latest_article_dates_by_domain(self):
+        from media_helpers import latest_article_dates_by_domain
+
+        response = {
+            "articles": [
+                {"domain": "Document.no", "date": "2026-05-03T12:00:00"},
+                {"domain": "document.no", "date": "2026-05-02"},
+                {"domain": "friatider.se", "date": "2026-05-01"},
+            ]
+        }
+
+        latest = latest_article_dates_by_domain(response)
+        self.assertEqual(latest["www.document.no"], "2026-05-03")
+        self.assertEqual(latest["friatider.se"], "2026-05-01")
+
+    def test_best_article_count_uses_highest_valid_count(self):
+        from media_helpers import best_article_count
+
+        self.assertEqual(best_article_count(1141, "102736", 105029), 105029)
+        self.assertEqual(best_article_count(None, "bad", -1), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

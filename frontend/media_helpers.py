@@ -47,6 +47,18 @@ def consolidate_outlets(outlets: Iterable[Dict[str, Any]]) -> List[Dict[str, Any
     return list(by_domain.values())
 
 
+def best_article_count(*values: Any) -> int:
+    counts: List[int] = []
+    for value in values:
+        try:
+            count = int(value or 0)
+        except (TypeError, ValueError):
+            continue
+        if count >= 0:
+            counts.append(count)
+    return max(counts, default=0)
+
+
 def select_latest_articles(response: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
     if not response:
         return []
@@ -54,3 +66,21 @@ def select_latest_articles(response: Dict[str, Any], limit: int = 5) -> List[Dic
     if not isinstance(articles, list):
         return []
     return articles[:limit]
+
+
+def latest_article_dates_by_domain(response: Dict[str, Any]) -> Dict[str, str]:
+    if not response:
+        return {}
+    articles = response.get("articles") or []
+    if not isinstance(articles, list):
+        return {}
+
+    latest: Dict[str, str] = {}
+    for article in articles:
+        domain = normalize_domain(article.get("domain") or "")
+        date = str(article.get("date") or "")[:10]
+        if not domain or not date:
+            continue
+        if domain not in latest:
+            latest[domain] = date
+    return latest

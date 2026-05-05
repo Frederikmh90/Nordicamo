@@ -13,8 +13,11 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image, ImageChops
 
+from analytics import build_umami_bootstrap_html
+from navigation import ALLOWED_PAGES, LEGACY_PAGE_ALIASES, TOPBAR_NAV_ITEMS
 from pages.about import show_about_page
 from pages.explorer import show_explorer_page
 from pages.get_access import show_get_access_page
@@ -75,12 +78,6 @@ def get_trimmed_logo():
 
 
 def build_topbar_html(current_page: str) -> str:
-    nav_items = [
-        ("Explorer", "Explorer"),
-        ("Media", "Media"),
-        ("About", "About"),
-        ("Full Data Access", "GetAccess"),
-    ]
     logo_to_use = get_trimmed_logo()
     logo_html = "<div class='topbar-logo'>NAMO</div>"
     if logo_to_use and logo_to_use.exists():
@@ -89,7 +86,7 @@ def build_topbar_html(current_page: str) -> str:
         logo_html = f"<div class='topbar-logo'><img src='data:image/png;base64,{encoded}' alt='NAMO logo'/></div>"
 
     links = []
-    for label, page_key in nav_items:
+    for label, page_key in TOPBAR_NAV_ITEMS:
         active_class = "active" if current_page == page_key else ""
         cta_class = "cta" if page_key == "GetAccess" else ""
         links.append(
@@ -190,6 +187,70 @@ st.markdown("""
         padding: 14px 16px;
         box-shadow: var(--shadow-soft);
     }
+    .signal-panel {
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.82);
+        padding: 14px 16px;
+        box-shadow: var(--shadow-soft);
+    }
+    .signal-panel-title {
+        font-size: 12px;
+        font-weight: 800;
+        color: var(--color-logo);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+    .signal-item {
+        border-top: 1px solid var(--color-border);
+        padding: 8px 0 0;
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--color-text);
+        line-height: 1.35;
+    }
+    .signal-item:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+        margin-top: 0;
+    }
+    .signal-meta {
+        color: var(--color-text-muted);
+        font-size: 12px;
+        margin-bottom: 2px;
+    }
+    .overview-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+    }
+    .overview-action {
+        display: inline-flex;
+        align-items: center;
+        min-height: 38px;
+        padding: 8px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: #ffffff;
+        color: #173f5f;
+        font-weight: 700;
+        text-decoration: none !important;
+        box-shadow: var(--shadow-soft);
+    }
+    .overview-action.primary {
+        background: #173f5f;
+        border-color: #173f5f;
+        color: #ffffff;
+    }
+    .overview-action:hover {
+        background: #eef3f7;
+    }
+    .overview-action.primary:hover {
+        background: #0f314d;
+        color: #ffffff;
+    }
 
     .chip {
         display: inline-flex;
@@ -247,6 +308,9 @@ st.markdown("""
         display: flex;
         gap: 18px;
         margin-left: auto;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
     .nav-link {
         font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
@@ -283,19 +347,20 @@ st.markdown("""
         text-decoration: none;
     }
     .nav-link.cta {
-        background: linear-gradient(135deg, rgba(31, 119, 180, 0.18), rgba(231, 76, 60, 0.18));
-        border: 1px solid rgba(31, 119, 180, 0.35);
-        color: #1b3a53;
-        box-shadow: 0 6px 14px rgba(31, 119, 180, 0.18);
+        background: #173f5f;
+        border: 1px solid #173f5f;
+        color: #ffffff;
+        box-shadow: 0 6px 14px rgba(23, 63, 95, 0.18);
     }
     .nav-link.cta:hover {
-        background: linear-gradient(135deg, rgba(31, 119, 180, 0.26), rgba(231, 76, 60, 0.26));
-        color: #0f2a3a;
+        background: #0f314d;
+        color: #ffffff;
     }
     .nav-link.active.cta {
-        background: linear-gradient(135deg, rgba(31, 119, 180, 0.28), rgba(231, 76, 60, 0.28));
-        border-color: rgba(31, 119, 180, 0.5);
-        box-shadow: 0 8px 18px rgba(31, 119, 180, 0.22);
+        background: #0f314d;
+        border-color: #0f314d;
+        color: #ffffff;
+        box-shadow: 0 8px 18px rgba(23, 63, 95, 0.22);
     }
 
     .media-card {
@@ -304,7 +369,7 @@ st.markdown("""
         padding: 16px;
         background: rgba(255, 255, 255, 0.6);
         box-shadow: var(--shadow-soft);
-        min-height: 170px;
+        min-height: 210px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -320,10 +385,84 @@ st.markdown("""
         color: var(--color-text-muted);
         margin-bottom: 8px;
     }
+    .media-domain {
+        color: #173f5f;
+        font-size: 0.85rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        overflow-wrap: anywhere;
+    }
+    .media-pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 8px 0;
+    }
+    .media-pill {
+        border: 1px solid var(--color-border);
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: #ffffff;
+        color: var(--color-text-muted);
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .media-latest {
+        color: var(--color-text-muted);
+        font-size: 12px;
+        margin-top: 8px;
+    }
     .media-count {
         font-size: 1.1rem;
         font-weight: 600;
         color: #1f77b4;
+    }
+    .task-card {
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.75);
+        padding: 12px 14px;
+        min-height: 104px;
+        box-shadow: var(--shadow-soft);
+    }
+    .task-card strong {
+        color: #15212c;
+    }
+    .task-card .task-label {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+        margin-top: 4px;
+    }
+    .chart-context {
+        color: var(--color-text-muted);
+        font-size: 0.92rem;
+        margin: -4px 0 12px 0;
+    }
+    .filter-summary {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+    }
+    .filter-token {
+        border: 1px solid var(--color-border);
+        border-radius: 999px;
+        background: #ffffff;
+        padding: 3px 8px;
+        color: var(--color-text-muted);
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .access-checklist {
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.82);
+        padding: 16px 18px;
+        box-shadow: var(--shadow-soft);
+    }
+    .access-checklist ul {
+        margin: 8px 0 0 20px;
+        padding: 0;
     }
     .stat-card {
         border: 1px solid var(--color-border);
@@ -517,6 +656,16 @@ st.markdown("""
         display: inline-block;
         margin-right: 32px;
     }
+    .news-ticker-item a,
+    .signal-item a {
+        color: inherit;
+        text-decoration: none;
+    }
+    .news-ticker-item a:hover,
+    .signal-item a:hover {
+        color: var(--color-accent-strong);
+        text-decoration: underline;
+    }
 
     @keyframes ticker-scroll {
         0% {
@@ -575,6 +724,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 def main():
     """Main application."""
+    components.html(build_umami_bootstrap_html(), height=0, width=0)
+
     page = None
     try:
         params = st.query_params
@@ -584,7 +735,7 @@ def main():
         page_list = params.get("page")
         page = page_list[0] if page_list else None
 
-    legacy_pages = {"Platform": "Nordicamo", "Countries": "Explorer", "Full Data Access": "GetAccess"}
+    legacy_pages = LEGACY_PAGE_ALIASES
     if page in legacy_pages:
         page = legacy_pages[page]
         try:
@@ -592,7 +743,7 @@ def main():
         except Exception:
             st.experimental_set_query_params(page=page)
 
-    allowed_pages = {"Nordicamo", "Explorer", "Media", "About", "GetAccess"}
+    allowed_pages = ALLOWED_PAGES
     if page in allowed_pages:
         st.session_state["page"] = page
 

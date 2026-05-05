@@ -20,8 +20,10 @@ from services.api import (
 )
 
 COUNTRIES = ["denmark", "sweden", "norway", "finland"]
-MODE_COMPARE = "Compare Countries"
+MODE_COMPARE = "Country Comparison"
 MODE_DEEP_DIVE = "Country Deep Dive"
+COUNTRY_VIEW_COMPARE = "Compare countries"
+COUNTRY_VIEW_OPTIONS = [COUNTRY_VIEW_COMPARE, "Denmark", "Finland", "Norway", "Sweden"]
 
 COUNTRY_COLORS = {
     "denmark": "#C8102E",
@@ -41,6 +43,19 @@ def normalize_country(country: str | None) -> str:
     if country in COUNTRIES:
         return country
     return "denmark"
+
+
+def normalize_country_view(view: str | None) -> str:
+    if view in COUNTRY_VIEW_OPTIONS:
+        return view
+    return COUNTRY_VIEW_COMPARE
+
+
+def country_view_to_state(view: str | None) -> tuple[str, str | None]:
+    normalized = normalize_country_view(view)
+    if normalized == COUNTRY_VIEW_COMPARE:
+        return MODE_COMPARE, None
+    return MODE_DEEP_DIVE, normalized.lower()
 
 
 def deep_dive_view_options() -> list[str]:
@@ -99,6 +114,33 @@ def _plot(fig: go.Figure) -> None:
         fig,
         use_container_width=True,
         config={"scrollZoom": True, "responsive": True, "displaylogo": False},
+    )
+
+
+def _period_label(year_from: int, year_to: int) -> str:
+    return f"{year_from}-{year_to}"
+
+
+def _partisan_label(partisan: str | None) -> str:
+    return "All orientations" if partisan is None else partisan
+
+
+def _filter_tokens(*items: tuple[str, str]) -> str:
+    return "".join(
+        f"<span class='filter-token'>{label}: {value}</span>" for label, value in items
+    )
+
+
+def _chart_context(question: str, unit: str, *filters: tuple[str, str]) -> None:
+    st.markdown(
+        f"""
+        <div class='chart-context'>
+            {question}<br/>
+            <span>Unit: {unit}</span>
+            <span class='filter-summary'>{_filter_tokens(*filters)}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 
@@ -170,6 +212,11 @@ def _inject_explorer_styles() -> None:
         div[data-testid="stMultiSelect"] [data-baseweb="tag"] span {
             color: #1B5E20 !important;
         }
+        .explorer-mode-label {
+            color: var(--color-text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.35rem;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -182,33 +229,75 @@ def _render_global_country_kpis(overview: dict | None) -> None:
         return
 
     with st.container():
-        top_left, top_right = st.columns(2)
-        with top_left:
+        denmark_col, sweden_col, norway_col, finland_col = st.columns(4)
+        with denmark_col:
             st.markdown(
                 f"<div style='padding:4px 2px;'><div style='font-size:13px; color: var(--color-text-muted);'>Denmark</div>"
                 f"<div style='font-size:28px; color: var(--color-text); font-weight:600; line-height:1.1;'>{int(by_country.get('denmark', 0)):,}</div></div>",
                 unsafe_allow_html=True,
             )
-        with top_right:
+        with sweden_col:
             st.markdown(
                 f"<div style='padding:4px 2px;'><div style='font-size:13px; color: var(--color-text-muted);'>Sweden</div>"
                 f"<div style='font-size:28px; color: var(--color-text); font-weight:600; line-height:1.1;'>{int(by_country.get('sweden', 0)):,}</div></div>",
                 unsafe_allow_html=True,
             )
-
-        bottom_left, bottom_right = st.columns(2)
-        with bottom_left:
+        with norway_col:
             st.markdown(
                 f"<div style='padding:4px 2px;'><div style='font-size:13px; color: var(--color-text-muted);'>Norway</div>"
                 f"<div style='font-size:28px; color: var(--color-text); font-weight:600; line-height:1.1;'>{int(by_country.get('norway', 0)):,}</div></div>",
                 unsafe_allow_html=True,
             )
-        with bottom_right:
+        with finland_col:
             st.markdown(
                 f"<div style='padding:4px 2px;'><div style='font-size:13px; color: var(--color-text-muted);'>Finland</div>"
                 f"<div style='font-size:28px; color: var(--color-text); font-weight:600; line-height:1.1;'>{int(by_country.get('finland', 0)):,}</div></div>",
                 unsafe_allow_html=True,
             )
+
+
+def _default_country_view() -> str:
+    current_view = st.session_state.get("country_view")
+    if current_view in COUNTRY_VIEW_OPTIONS:
+        return current_view
+    mode = normalize_explorer_mode(st.session_state.get("explorer_mode"))
+    if mode == MODE_DEEP_DIVE:
+        country = normalize_country(st.session_state.get("quick_country") or st.session_state.get("deep_country"))
+        return country.capitalize()
+    return COUNTRY_VIEW_COMPARE
+
+
+def _render_country_view_selector() -> tuple[str, str | None]:
+    st.markdown(
+        """
+        <div class='task-card'>
+            <strong>Choose a country view</strong>
+            <div class='task-label'>Use Compare countries for cross-national patterns, or jump directly into one country as the primary workspace.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div class='explorer-mode-label'>Country view</div>", unsafe_allow_html=True)
+    default_view = normalize_country_view(_default_country_view())
+    if hasattr(st, "segmented_control"):
+        selected = st.segmented_control(
+            "Country view",
+            options=COUNTRY_VIEW_OPTIONS,
+            default=default_view,
+            selection_mode="single",
+            label_visibility="collapsed",
+            key="country_view",
+        )
+        return country_view_to_state(selected)
+    selected = st.radio(
+        "Country view",
+        options=COUNTRY_VIEW_OPTIONS,
+        index=COUNTRY_VIEW_OPTIONS.index(default_view),
+        horizontal=True,
+        key="country_view",
+        label_visibility="collapsed",
+    )
+    return country_view_to_state(selected)
 
 
 def _render_outlets_table(country: str, date_from: str, date_to: str) -> None:
@@ -275,8 +364,17 @@ def _render_compare_mode(overview: dict | None) -> None:
 
     date_from = f"{year_from}-01-01"
     date_to = f"{year_to}-12-31"
+    period = _period_label(year_from, year_to)
+    partisan_label = _partisan_label(partisan_filter)
 
     with st.container(border=True):
+        _chart_context(
+            "How does publication volume develop across the four Nordic countries?",
+            "article count",
+            ("Period", period),
+            ("Granularity", granularity),
+            ("Orientation", partisan_label),
+        )
         fig = go.Figure()
         for ctry in COUNTRIES:
             time_data = fetch_articles_over_time(
@@ -314,6 +412,12 @@ def _render_compare_mode(overview: dict | None) -> None:
     with left:
         with st.container(border=True):
             st.subheader("Partisanship Mix by Country")
+            _chart_context(
+                "What share of each country's indexed output comes from each outlet orientation?",
+                "percent of articles",
+                ("Period", period),
+                ("Orientation", "All orientations"),
+            )
             partisan_rows = []
             for ctry in COUNTRIES:
                 mix = fetch_partisan_mix(country=ctry, date_from=date_from, date_to=date_to)
@@ -362,9 +466,15 @@ def _render_compare_mode(overview: dict | None) -> None:
                 st.info("No partisan data available for this selection.")
     with right:
         with st.container(border=True):
-            st.subheader("Outlet Concentration")
+            st.subheader("Outlet Diversity")
+            _chart_context(
+                "How many equally sized outlets would produce the same concentration pattern?",
+                "effective outlet count (1/HHI)",
+                ("Period", period),
+                ("Orientation", partisan_label),
+            )
             st.caption(
-                "ENP (Effective Number of Outlets) summarizes outlet concentration for each country in the selected period; higher ENP means publication volume is spread across more outlets."
+                "HHI measures concentration by summing squared outlet shares. Here it is inverted (1/HHI), so the number reads like the approximate count of equally sized outlets behind the observed output. Higher values mean a more distributed outlet landscape; lower values mean a few outlets dominate."
             )
             concentration_rows = []
             for ctry in COUNTRIES:
@@ -384,10 +494,11 @@ def _render_compare_mode(overview: dict | None) -> None:
                     )
             if concentration_rows:
                 df_concentration = pd.DataFrame(concentration_rows)
+                df_concentration = df_concentration.rename(columns={"enp": "effective_outlet_count"})
                 fig_concentration = px.bar(
                     df_concentration,
                     x="country",
-                    y="enp",
+                    y="effective_outlet_count",
                     color="country",
                     color_discrete_map={
                         "Denmark": COUNTRY_COLORS["denmark"],
@@ -398,7 +509,7 @@ def _render_compare_mode(overview: dict | None) -> None:
                 )
                 fig_concentration.update_layout(
                     height=430,
-                    yaxis_title="ENP",
+                    yaxis_title="Effective outlet count",
                     xaxis_title="",
                     showlegend=False,
                 )
@@ -409,6 +520,13 @@ def _render_compare_mode(overview: dict | None) -> None:
 
     with st.container(border=True):
         st.subheader("Topics Over Time (All Countries)")
+        _chart_context(
+            "Which article categories rise or fall over time across the full Nordic selection?",
+            "article count",
+            ("Period", period),
+            ("Granularity", granularity),
+            ("Orientation", partisan_label),
+        )
         topic_data = fetch_categories_over_time(
             country=None,
             partisan=partisan_filter,
@@ -451,10 +569,14 @@ def _render_compare_mode(overview: dict | None) -> None:
 
     with st.container(border=True):
         st.subheader("Agenda Similarity (Countries)")
+        _chart_context(
+            "How similar are country agendas based on relative topic distributions?",
+            "cosine similarity",
+            ("Period", period),
+            ("Orientation", partisan_label),
+        )
         st.caption(
-            "This chart compares agenda similarity using topic distributions, not full-text semantics. "
-            "Cosine Similarity: higher values indicate more similar relative topic emphasis. "
-            "It is computed from normalized topic-share vectors built from article category counts in the selected filters."
+            "Computed from normalized topic-share vectors built from article category counts, not full-text semantics."
         )
         similarity = fetch_topic_similarity(
             level="country",
@@ -506,30 +628,18 @@ def _render_compare_mode(overview: dict | None) -> None:
 def _render_deep_dive_mode(overview: dict | None) -> None:
     year_min, year_max = _year_bounds(overview)
     default_year_from, default_year_to = _default_year_range(year_min, year_max)
-    default_country = normalize_country(st.session_state.get("quick_country"))
+    country = normalize_country(st.session_state.get("quick_country") or st.session_state.get("deep_country"))
+    st.session_state["quick_country"] = country
+    st.session_state["deep_country"] = country
+    st.subheader(f"{country.capitalize()} Deep Dive")
 
-    st.markdown("<div class='explorer-control-bar'>", unsafe_allow_html=True)
-    st.markdown(
-        "<div class='explorer-note'>Focus on one country and inspect outlet-level and partisan dynamics over time.</div>",
-        unsafe_allow_html=True,
+    view_type = st.radio(
+        "Analysis view",
+        options=deep_dive_view_options(),
+        index=0,
+        horizontal=True,
+        key="deep_view_type",
     )
-    top1, top2 = st.columns([1.2, 1.8])
-    with top1:
-        country = st.selectbox(
-            "Country",
-            options=COUNTRIES,
-            index=COUNTRIES.index(default_country),
-            format_func=lambda x: x.capitalize(),
-            key="deep_country",
-        )
-    with top2:
-        view_type = st.radio(
-            "View",
-            options=deep_dive_view_options(),
-            index=0,
-            horizontal=True,
-            key="deep_view_type",
-        )
     c1, c2, c3 = st.columns([1, 1, 1.4])
     with c1:
         granularity = st.selectbox(
@@ -554,14 +664,48 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
             step=1,
             key="deep_year_range",
         )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.session_state["quick_country"] = country
     date_from = f"{year_from}-01-01"
     date_to = f"{year_to}-12-31"
+    period = _period_label(year_from, year_to)
+    partisan_label = _partisan_label(partisan_filter)
 
     with st.container(border=True):
-        st.subheader(f"Articles Over Time ({country.capitalize()})")
+        if view_type == "Total Count":
+            _chart_context(
+                f"How does total publication volume develop in {country.capitalize()}?",
+                "article count",
+                ("Country", country.capitalize()),
+                ("Period", period),
+                ("Granularity", granularity),
+                ("Orientation", partisan_label),
+            )
+        elif view_type == "Separate Outlets":
+            _chart_context(
+                f"Which selected outlets drive publication volume in {country.capitalize()}?",
+                "article count",
+                ("Country", country.capitalize()),
+                ("Period", period),
+                ("Granularity", granularity),
+                ("Orientation", partisan_label),
+            )
+        elif view_type == "Partisan Accumulated":
+            _chart_context(
+                f"How does publication volume differ by orientation in {country.capitalize()}?",
+                "article count",
+                ("Country", country.capitalize()),
+                ("Period", period),
+                ("Granularity", granularity),
+            )
+        else:
+            _chart_context(
+                f"Which article categories rise or fall in {country.capitalize()}?",
+                "article count",
+                ("Country", country.capitalize()),
+                ("Period", period),
+                ("Granularity", granularity),
+                ("Orientation", partisan_label),
+            )
         if view_type == "Total Count":
             time_data = fetch_articles_over_time(
                 country=country,
@@ -720,7 +864,13 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
 
     with st.container(border=True):
         st.subheader("Topics by Media")
-        st.caption("Compare agenda profiles across outlets in the selected country and period.")
+        _chart_context(
+            "How do selected outlets differ in their topic profiles?",
+            "article count or percent",
+            ("Country", country.capitalize()),
+            ("Period", period),
+            ("Orientation", partisan_label),
+        )
         outlet_options_data = fetch_top_outlets(
             country=country,
             partisan=partisan_filter,
@@ -829,11 +979,14 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
 
     with st.container(border=True):
         st.subheader("Agenda Similarity (Outlets)")
-        st.caption(
-            "This chart compares agenda similarity using topic distributions, not full-text semantics. "
-            "Cosine Similarity: higher values indicate more similar relative topic emphasis. "
-            "It is computed from normalized topic-share vectors built from article category counts in the selected filters."
+        _chart_context(
+            "How similar are selected outlet agendas based on relative topic distributions?",
+            "cosine similarity",
+            ("Country", country.capitalize()),
+            ("Period", period),
+            ("Orientation", partisan_label),
         )
+        st.caption("Computed from normalized topic-share vectors built from article category counts, not full-text semantics.")
         similarity_outlet_options_data = fetch_top_outlets(
             country=country,
             partisan=partisan_filter,
@@ -903,10 +1056,22 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
     with left:
         with st.container(border=True):
             st.subheader(f"Outlets ({country.capitalize()})")
+            _chart_context(
+                "Which outlets contribute the most indexed articles in this selection?",
+                "article count",
+                ("Country", country.capitalize()),
+                ("Period", period),
+            )
             _render_outlets_table(country=country, date_from=date_from, date_to=date_to)
     with right:
         with st.container(border=True):
             st.subheader(f"News Categories ({country.capitalize()})")
+            _chart_context(
+                "Which categories are most common in this country?",
+                "article count and percent",
+                ("Country", country.capitalize()),
+                ("Period", "all indexed years"),
+            )
             _render_categories_table(country=country)
 
 
@@ -914,28 +1079,23 @@ def show_explorer_page() -> None:
     """Show comparative Explorer with explicit mode separation."""
     _inject_explorer_styles()
 
-    st.markdown('<h1 class="main-header">Explorer</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Countries</h1>', unsafe_allow_html=True)
     overview = fetch_overview()
 
-    intro_col, kpi_col = st.columns([1.6, 1.0])
-    with intro_col:
-        st.markdown(
-            "<div class='subtle' style='font-size:1.15rem;'>The Explorer provides a high-level overview of the alternative news media content. "
-            "Start with all countries for a broad comparison, or select a country to see outlets and "
-            "publishing activity over time. Adjust filters to narrow the view.</div>",
-            unsafe_allow_html=True,
-        )
-    with kpi_col:
-        _render_global_country_kpis(overview)
-
-    mode = normalize_explorer_mode(st.session_state.get("explorer_mode"))
-    mode = st.radio(
-        "Explorer Mode",
-        options=[MODE_COMPARE, MODE_DEEP_DIVE],
-        index=0 if mode == MODE_COMPARE else 1,
-        horizontal=True,
-        key="explorer_mode",
+    st.markdown(
+        "<div class='subtle' style='font-size:1.15rem;'>Compare alternative media signals across Denmark, Finland, Norway, and Sweden, "
+        "or switch to a country deep dive to inspect outlet-level activity over time. Filters stay scoped to the selected analytical task.</div>",
+        unsafe_allow_html=True,
     )
+
+    mode, selected_country = _render_country_view_selector()
+    st.session_state["explorer_mode"] = mode
+    if selected_country:
+        st.session_state["quick_country"] = selected_country
+        st.session_state["deep_country"] = selected_country
+    else:
+        st.session_state["quick_country"] = None
+    _render_global_country_kpis(overview)
     st.divider()
 
     if mode == MODE_COMPARE:

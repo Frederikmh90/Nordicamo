@@ -1,0 +1,29 @@
+import unittest
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+
+class TestNavigation(unittest.TestCase):
+    def test_topbar_navigation_is_intentionally_compact(self):
+        from navigation import TOPBAR_NAV_ITEMS
+
+        self.assertEqual(
+            TOPBAR_NAV_ITEMS,
+            [
+                ("Platform", "Nordicamo"),
+                ("Countries", "Explorer"),
+                ("Request Access", "GetAccess"),
+            ],
+        )
+
+    def test_legacy_page_aliases_include_old_access_label(self):
+        from navigation import LEGACY_PAGE_ALIASES
+
+        self.assertEqual(LEGACY_PAGE_ALIASES["Full Data Access"], "GetAccess")
+        self.assertEqual(LEGACY_PAGE_ALIASES["Countries"], "Explorer")
+
+
+if __name__ == "__main__":
+    unittest.main()

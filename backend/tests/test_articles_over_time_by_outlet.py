@@ -7,23 +7,21 @@ class DummyStatsService:
     def __init__(self, db):
         self.db = db
 
-    def get_categories_over_time(
+    def get_articles_over_time_by_outlet(
         self,
+        outlets,
         country=None,
-        partisan=None,
-        outlets=None,
+        granularity="month",
         date_from=None,
         date_to=None,
-        granularity="month",
-        limit=6,
     ):
-        self.last_args = (country, partisan, outlets, date_from, date_to, granularity, limit)
+        self.last_args = (outlets, country, granularity, date_from, date_to)
         return [
-            {"date": "2020", "category": "Politics", "count": 10},
+            {"date": "2020", "outlet": "example.com", "count": 12},
         ]
 
 
-class TestCategoriesOverTime(unittest.TestCase):
+class TestArticlesOverTimeByOutlet(unittest.TestCase):
     def setUp(self):
         from app.main import app
         from app.api import stats as stats_module
@@ -40,26 +38,24 @@ class TestCategoriesOverTime(unittest.TestCase):
         self.stats_module.StatsService = self.original_stats_service
         self.app.dependency_overrides = {}
 
-    def test_categories_over_time_filters(self):
+    def test_articles_over_time_by_outlet_filters(self):
         response = self.client.get(
-            "/api/stats/categories/over-time",
+            "/api/stats/articles-over-time-by-outlet",
             params={
-                "country": "denmark",
-                "partisan": "Right",
+                "outlets": "example.com,example2.com",
+                "country": "sweden",
                 "granularity": "year",
                 "date_from": "2020-01-01",
                 "date_to": "2020-12-31",
-                "limit": 5,
             },
         )
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["filters"]["country"], "denmark")
-        self.assertEqual(payload["filters"]["partisan"], "Right")
+        self.assertEqual(payload["filters"]["country"], "sweden")
         self.assertEqual(payload["filters"]["granularity"], "year")
         self.assertEqual(payload["filters"]["date_from"], "2020-01-01")
         self.assertEqual(payload["filters"]["date_to"], "2020-12-31")
-        self.assertEqual(payload["filters"]["limit"], 5)
+        self.assertEqual(payload["filters"]["outlets"], "example.com,example2.com")
 
 
 if __name__ == "__main__":

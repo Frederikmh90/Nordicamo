@@ -7,7 +7,20 @@ from sqlalchemy.orm import Session
 
 
 def normalize_outlets(outlets: List[str]) -> List[str]:
-    return [outlet.strip().lower() for outlet in outlets if outlet and outlet.strip()]
+    """Normalize outlet domains and expand www/non-www variants."""
+    seen = set()
+    result = []
+    for outlet in outlets:
+        if not outlet:
+            continue
+        base = outlet.strip().lower()
+        if not base:
+            continue
+        for variant in [base, f"www.{base}" if not base.startswith("www.") else base[4:]]:
+            if variant not in seen:
+                seen.add(variant)
+                result.append(variant)
+    return result
 
 
 class ArticlesService:

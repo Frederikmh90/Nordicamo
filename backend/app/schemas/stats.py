@@ -45,6 +45,20 @@ class ArticlesOverTimeResponse(BaseModel):
     data: List[TimeSeriesItem]
 
 
+class OutletTimeSeriesItem(BaseModel):
+    """Outlet time series data item."""
+    date: str
+    outlet: str
+    count: int
+
+
+class ArticlesOverTimeByOutletResponse(BaseModel):
+    """Articles over time by outlet response."""
+    granularity: str
+    filters: Dict[str, Optional[str]]
+    data: List[OutletTimeSeriesItem]
+
+
 class TopOutletItem(BaseModel):
     """Top outlet item."""
     domain: str
@@ -93,6 +107,48 @@ class CategoriesOverTimeResponse(BaseModel):
     """Categories over time response."""
     filters: Dict[str, Optional[Union[str, int]]]
     data: List[CategoryOverTimeItem]
+
+
+class ConcentrationMetricsResponse(BaseModel):
+    """Outlet concentration metrics."""
+    filters: Dict[str, Optional[str]]
+    top_n: int
+    top_n_share: float
+    hhi: float
+    enp: float
+    n_outlets: int
+    coverage_share: float
+
+
+class PartisanMixItem(BaseModel):
+    """Partisan mix item."""
+    partisan: str
+    count: int
+    share: float
+
+
+class PartisanMixResponse(BaseModel):
+    """Partisan mix response."""
+    filters: Dict[str, Optional[str]]
+    total_count: int
+    unknown_or_missing_count: int
+    data: List[PartisanMixItem]
+
+
+class SimilarityValue(BaseModel):
+    """Pairwise similarity value."""
+    entity_a: str
+    entity_b: str
+    value: float
+
+
+class TopicSimilarityResponse(BaseModel):
+    """Topic similarity response."""
+    filters: Dict[str, Optional[Union[str, int]]]
+    topics: List[str]
+    entities: List[str]
+    cosine: List[SimilarityValue]
+    jsd: List[SimilarityValue]
 
 
 class SentimentItem(BaseModel):

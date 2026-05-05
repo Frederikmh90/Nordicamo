@@ -30,7 +30,8 @@ def show_about_page() -> None:
         "<div class='about-intro'>Nordicamo is updated on a recurring basis, and coverage varies by outlet depending on "
         "site structure, publication activity, and technical accessibility. The platform is currently descriptive by "
         "design (v1.0) and intended to support inquiry and documentation rather than definitive evaluation of outlets "
-        "or audiences.</div>",
+        "or audiences. Code and version history are available on "
+        "<a href='https://github.com/Frederikmh90/Nordicamo' target='_blank' rel='noopener'>GitHub</a>.</div>",
         unsafe_allow_html=True,
     )
     st.markdown("<div class='about-grid-spacer'></div>", unsafe_allow_html=True)
@@ -154,7 +155,7 @@ def show_about_page() -> None:
             </div>
             <div class="affiliation-row">
                 <img class="affiliation-logo" src="{dml_img}" alt="Digital Media Lab logo"/>
-                <div class="affiliation-text"><strong>Digital Media Lab (DML)</strong> hosts this platform. DML is a
+                <div class="affiliation-text"><a href="https://digitalmedialab.ruc.dk/" target="_blank" rel="noopener"><strong>Digital Media Lab (DML)</strong></a> hosts this platform. DML is a
                 digital and physical lab in the Department of Communication and Arts - Roskilde University
                 supporting students, faculty, and external practitioners who work with digital data and digital
                 methods.</div>

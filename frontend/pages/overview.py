@@ -10,6 +10,7 @@ import streamlit as st
 
 from config import get_api_base_url
 from overview_helpers import format_freshness, load_db_comparison
+from ui_labels import AVG_ARTICLES_PER_OUTLET_LABEL
 from services.api import (
     fetch_articles,
     fetch_articles_over_time,
@@ -72,6 +73,21 @@ def _build_ticker_sample(articles: list[dict]) -> list[dict]:
     return sample
 
 
+def _observatory_scope_items() -> str:
+    items = [
+        ("Active monitoring", "Recurring collection from publisher-operated outlet websites."),
+        ("Comparative analysis", "Country-level views of publication patterns, outlets, and topics."),
+        ("Research archive", "Historical coverage for case selection and longitudinal work."),
+    ]
+    return "".join(
+        "<div class='signal-item'>"
+        f"<div class='signal-meta'>{html.escape(title)}</div>"
+        f"<div>{html.escape(body)}</div>"
+        "</div>"
+        for title, body in items
+    )
+
+
 def show_overview_page() -> None:
     """Show overview dashboard page."""
     enhanced_overview = fetch_enhanced_overview()
@@ -109,7 +125,14 @@ def show_overview_page() -> None:
             domain = article.get("domain") or "Unknown outlet"
             title = article.get("title") or "Untitled"
             date = (article.get("date") or "")[:10]
-            item = f"<strong>{html.escape(domain)}</strong> — {html.escape(title)} ({html.escape(date)})"
+            url = article.get("url")
+            title_html = html.escape(title)
+            if url:
+                title_html = (
+                    f"<a href='{html.escape(str(url), quote=True)}' "
+                    f"target='_blank' rel='noopener noreferrer'>{title_html}</a>"
+                )
+            item = f"<strong>{html.escape(domain)}</strong> — {title_html} ({html.escape(date)})"
             ticker_items.append(f"<span class='news-ticker-item'>{item}</span>")
         ticker_html = "".join(ticker_items)
         item_count = len(ticker_items)
@@ -134,16 +157,20 @@ def show_overview_page() -> None:
         )
         st.markdown(
             "<div class='subtle' style='color:#111111;font-size:1.05rem;'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative platform for studying "
-            "alternative news media across the Nordic region (currently <strong>Denmark, Finland, Norway, and Sweden</strong>). "
-            "It focuses on publisher-operated websites and supports research, journalism, and teaching. "
-            "<em>Alternative news media</em> refers to outlets that self-position as alternatives to mainstream journalism or political institutions.</div>",
+            "alternative news media across the continental Nordic region (currently <strong>Denmark, Finland, Norway, and Sweden</strong>). "
+            "It tracks publisher-operated websites as an active observatory while preserving historical coverage for comparative research.</div>",
             unsafe_allow_html=True,
         )
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
         st.markdown(
-            "<div class='subtle' style='color:#111111;font-size:1.05rem;'>Start exploring: use <strong>Explorer</strong> to compare trends across countries, "
-            "browse recent articles in <strong>Media</strong>, or request current and historical datasets through "
-            "<strong>Full Data Access</strong>. Enjoy!</div>",
+            "<div class='subtle' style='color:#111111;font-size:1.05rem;'>Use <strong>Countries</strong> to compare alternative news media landscapes "
+            "across the Nordic region or examine publication patterns, outlet structure, and topics within individual countries. Open the "
+            "<strong>Media archive</strong> for outlet-level browsing, or <strong>Request Access</strong> for current and historical datasets.</div>"
+            "<div class='overview-actions'>"
+            "<a class='overview-action primary' href='?page=Explorer' target='_self'>Open Countries</a>"
+            "<a class='overview-action' href='?page=Media' target='_self'>Browse media</a>"
+            "<a class='overview-action' href='?page=About' target='_self'>Methods</a>"
+            "</div>",
             unsafe_allow_html=True,
         )
     with hero_right:
@@ -163,6 +190,11 @@ def show_overview_page() -> None:
                     <div class='chip'><span class='pulse'></span> Live intake active</div>
                     {status_body}
                 </div>
+                <div style='height:10px;'></div>
+                <div class='signal-panel'>
+                    <div class='signal-panel-title'>Observatory scope</div>
+                    {_observatory_scope_items()}
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -180,7 +212,7 @@ def show_overview_page() -> None:
             render_kpi("Outlets", f"{total_outlets:,}")
         with k3:
             avg_per_outlet = kpi_source.get("avg_articles_per_outlet", 0) if kpi_source else 0
-            render_kpi("Articles per Outlet", f"{avg_per_outlet:,.0f}")
+            render_kpi(AVG_ARTICLES_PER_OUTLET_LABEL, f"{avg_per_outlet:,.0f}")
         with k4:
             coverage_years = kpi_source.get("coverage_years") if kpi_source else None
             if coverage_years:

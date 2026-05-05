@@ -32,6 +32,19 @@ class TestExplorerHelpers(unittest.TestCase):
 
         self.assertEqual(normalize_country("sweden"), "sweden")
 
+    def test_country_view_to_state(self):
+        from pages.explorer import (
+            COUNTRY_VIEW_COMPARE,
+            MODE_COMPARE,
+            MODE_DEEP_DIVE,
+            country_view_to_state,
+            normalize_country_view,
+        )
+
+        self.assertEqual(normalize_country_view("bad"), COUNTRY_VIEW_COMPARE)
+        self.assertEqual(country_view_to_state(COUNTRY_VIEW_COMPARE), (MODE_COMPARE, None))
+        self.assertEqual(country_view_to_state("Denmark"), (MODE_DEEP_DIVE, "denmark"))
+
     def test_deep_dive_view_options_includes_topics(self):
         from pages.explorer import deep_dive_view_options
 
@@ -88,6 +101,13 @@ class TestExplorerHelpers(unittest.TestCase):
             _wrap_two_line_label("Politics & Governance"),
             "Politics &<br>Governance",
         )
+
+    def test_filter_label_helpers(self):
+        from pages.explorer import _partisan_label, _period_label
+
+        self.assertEqual(_period_label(2016, 2026), "2016-2026")
+        self.assertEqual(_partisan_label(None), "All orientations")
+        self.assertEqual(_partisan_label("Right"), "Right")
 
 if __name__ == "__main__":
     unittest.main()

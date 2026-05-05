@@ -10,9 +10,11 @@ from app.schemas.stats import (
     OverviewResponse,
     ArticlesByCountryResponse,
     ArticlesOverTimeResponse,
+    ArticlesOverTimeByOutletResponse,
     TopOutletsResponse,
     CountryStatsItem,
     TimeSeriesItem,
+    OutletTimeSeriesItem,
     TopOutletItem,
     CategoriesResponse,
     CategoriesOverTimeResponse,
@@ -23,7 +25,12 @@ from app.schemas.stats import (
     TopEntitiesResponse,
     EntityStatisticsResponse,
     EntityItem,
-    OutletProfileResponse
+    OutletProfileResponse,
+    ConcentrationMetricsResponse,
+    PartisanMixResponse,
+    PartisanMixItem,
+    TopicSimilarityResponse,
+    SimilarityValue,
 )
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
@@ -89,6 +96,40 @@ async def get_articles_over_time(
             "date_to": date_to
         },
         data=[TimeSeriesItem(**item) for item in data]
+    )
+
+
+@router.get("/articles-over-time-by-outlet", response_model=ArticlesOverTimeByOutletResponse)
+async def get_articles_over_time_by_outlet(
+    outlets: str = Query(..., description="Comma-separated outlet domains"),
+    country: Optional[str] = Query(None, description="Filter by country"),
+    granularity: str = Query("month", description="Time granularity: day, week, month, year"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+):
+    """Get time series data for selected outlets."""
+    outlet_list = [o.strip() for o in outlets.split(",") if o.strip()]
+    if not outlet_list:
+        raise HTTPException(status_code=400, detail="outlets must contain at least one domain")
+    service = StatsService(db)
+    data = service.get_articles_over_time_by_outlet(
+        outlets=outlet_list,
+        country=country,
+        granularity=granularity,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    return ArticlesOverTimeByOutletResponse(
+        granularity=granularity,
+        filters={
+            "country": country,
+            "date_from": date_from,
+            "date_to": date_to,
+            "outlets": ",".join(outlet_list),
+        },
+        data=[OutletTimeSeriesItem(**item) for item in data],
     )
 
 
@@ -161,6 +202,7 @@ async def get_categories(
 async def get_categories_over_time(
     country: Optional[str] = Query(None, description="Filter by country"),
     partisan: Optional[str] = Query(None, description="Filter by partisan"),
+    outlets: Optional[str] = Query(None, description="Comma-separated outlet domains"),
     granularity: str = Query("month", description="Time granularity: year, month, week"),
     date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
@@ -169,9 +211,11 @@ async def get_categories_over_time(
 ):
     """Get category trends over time."""
     service = StatsService(db)
+    outlet_list = [o.strip() for o in outlets.split(",") if o.strip()] if outlets else None
     data = service.get_categories_over_time(
         country=country,
         partisan=partisan,
+        outlets=outlet_list,
         date_from=date_from,
         date_to=date_to,
         granularity=granularity,
@@ -182,6 +226,7 @@ async def get_categories_over_time(
         filters={
             "country": country,
             "partisan": partisan,
+            "outlets": outlets,
             "granularity": granularity,
             "date_from": date_from,
             "date_to": date_to,
@@ -263,6 +308,107 @@ async def get_entity_statistics(
             "partisan": partisan
         },
         **data
+    )
+
+
+@router.get("/concentration", response_model=ConcentrationMetricsResponse)
+async def get_concentration_metrics(
+    country: Optional[str] = Query(None, description="Filter by country"),
+    partisan: Optional[str] = Query(None, description="Filter by partisan"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    top_n: int = Query(5, description="Top N outlets for concentration share", ge=1, le=25),
+    db: Session = Depends(get_db),
+):
+    """Get outlet concentration metrics (Top-N share, HHI, ENP, coverage)."""
+    service = StatsService(db)
+    data = service.get_concentration_metrics(
+        country=country,
+        partisan=partisan,
+        date_from=date_from,
+        date_to=date_to,
+        top_n=top_n,
+    )
+    return ConcentrationMetricsResponse(
+        filters={
+            "country": country,
+            "partisan": partisan,
+            "date_from": date_from,
+            "date_to": date_to,
+        },
+        **data,
+    )
+
+
+@router.get("/partisan-mix", response_model=PartisanMixResponse)
+async def get_partisan_mix(
+    country: Optional[str] = Query(None, description="Filter by country"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+):
+    """Get partisan composition with unknown/missing diagnostics."""
+    service = StatsService(db)
+    data = service.get_partisan_mix(
+        country=country,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return PartisanMixResponse(
+        filters={
+            "country": country,
+            "date_from": date_from,
+            "date_to": date_to,
+        },
+        total_count=int(data.get("total_count", 0)),
+        unknown_or_missing_count=int(data.get("unknown_or_missing_count", 0)),
+        data=[PartisanMixItem(**row) for row in data.get("data", [])],
+    )
+
+
+@router.get("/topic-similarity", response_model=TopicSimilarityResponse)
+async def get_topic_similarity(
+    level: str = Query("country", description="Comparison level: country or outlet"),
+    country: Optional[str] = Query(None, description="Country filter (required for outlet level)"),
+    partisan: Optional[str] = Query(None, description="Partisan filter"),
+    outlets: Optional[str] = Query(None, description="Comma-separated outlet domains"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit_topics: int = Query(12, description="Number of topics in vector space", ge=2, le=40),
+    db: Session = Depends(get_db),
+):
+    """Get pairwise topic-similarity matrices (cosine + JSD)."""
+    normalized_level = (level or "country").lower()
+    if normalized_level not in {"country", "outlet"}:
+        raise HTTPException(status_code=400, detail="level must be 'country' or 'outlet'")
+    if normalized_level == "outlet" and not country:
+        raise HTTPException(status_code=400, detail="country is required when level='outlet'")
+
+    outlet_list = [o.strip() for o in outlets.split(",") if o.strip()] if outlets else None
+    service = StatsService(db)
+    data = service.get_topic_similarity(
+        level=normalized_level,
+        country=country,
+        partisan=partisan,
+        outlets=outlet_list,
+        date_from=date_from,
+        date_to=date_to,
+        limit_topics=limit_topics,
+    )
+    return TopicSimilarityResponse(
+        filters={
+            "level": normalized_level,
+            "country": country,
+            "partisan": partisan,
+            "outlets": outlets,
+            "date_from": date_from,
+            "date_to": date_to,
+            "limit_topics": limit_topics,
+        },
+        topics=data.get("topics", []),
+        entities=data.get("entities", []),
+        cosine=[SimilarityValue(**row) for row in data.get("cosine", [])],
+        jsd=[SimilarityValue(**row) for row in data.get("jsd", [])],
     )
 
 

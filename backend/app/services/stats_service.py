@@ -4,6 +4,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from itertools import combinations
+import math
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,43 @@ def domain_variants(value: str) -> List[str]:
     else:
         variants.add(f"www.{base}")
     return list(variants)
+
+
+def canonical_domain(value: str) -> str:
+    base = (value or "").strip().lower()
+    if base.startswith("www."):
+        return base[4:]
+    return base
+
+
+def _safe_share(count: int, total: int) -> float:
+    if total <= 0:
+        return 0.0
+    return float(count) / float(total)
+
+
+def _cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    norm_a = math.sqrt(sum(a * a for a in vec_a))
+    norm_b = math.sqrt(sum(b * b for b in vec_b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def _jensen_shannon_divergence(vec_a: List[float], vec_b: List[float]) -> float:
+    eps = 1e-12
+    m = [(a + b) / 2.0 for a, b in zip(vec_a, vec_b)]
+
+    def _kl(p: List[float], q: List[float]) -> float:
+        total = 0.0
+        for pi, qi in zip(p, q):
+            if pi <= 0.0:
+                continue
+            total += pi * math.log2(max(pi, eps) / max(qi, eps))
+        return total
+
+    return 0.5 * _kl(vec_a, m) + 0.5 * _kl(vec_b, m)
 
 
 class StatsService:
@@ -208,6 +247,67 @@ class StatsService:
         
         results = self.db.execute(query, params).fetchall()
         return [{"date": str(row[0]), "count": row[1]} for row in results]
+
+    def get_articles_over_time_by_outlet(
+        self,
+        outlets: List[str],
+        country: Optional[str] = None,
+        granularity: str = "month",
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> List[Dict]:
+        """Get time series data for selected outlets."""
+        if not outlets:
+            return []
+
+        normalized: List[str] = []
+        for outlet in outlets:
+            normalized.extend(domain_variants(outlet))
+        normalized = sorted({o for o in normalized if o})
+
+        conditions = ["date IS NOT NULL", "lower(domain) = ANY(:outlets)"]
+        params: Dict[str, Any] = {"outlets": normalized}
+
+        if country:
+            conditions.append("LOWER(country) = LOWER(:country)")
+            params["country"] = country
+
+        if date_from:
+            conditions.append("date >= :date_from")
+            params["date_from"] = date_from
+
+        if date_to:
+            conditions.append("date <= :date_to")
+            params["date_to"] = date_to
+
+        where_clause = " AND ".join(conditions)
+
+        if granularity == "year":
+            date_format = "TO_CHAR(date, 'YYYY')"
+            group_by = "TO_CHAR(date, 'YYYY')"
+        elif granularity == "month":
+            date_format = "TO_CHAR(date, 'YYYY-MM')"
+            group_by = "TO_CHAR(date, 'YYYY-MM')"
+        elif granularity == "week":
+            date_format = "TO_CHAR(date, 'IYYY-IW')"
+            group_by = "TO_CHAR(date, 'IYYY-IW')"
+        else:
+            date_format = "TO_CHAR(date, 'YYYY-MM-DD')"
+            group_by = "TO_CHAR(date, 'YYYY-MM-DD')"
+
+        query = text(f"""
+            SELECT 
+                {date_format} as date,
+                LOWER(domain) as outlet,
+                COUNT(*) as count
+            FROM clean_articles
+            WHERE {where_clause}
+            GROUP BY {group_by}, LOWER(domain)
+            ORDER BY date, outlet
+        """)
+
+        results = self.db.execute(query, params).fetchall()
+        return [{"date": str(row[0]), "outlet": row[1], "count": row[2]} for row in results]
     
     def get_top_outlets(
         self,
@@ -239,26 +339,33 @@ class StatsService:
         where_clause = " AND ".join(conditions)
         
         query = text(f"""
-            WITH outlet_counts AS (
+            WITH base AS (
                 SELECT
-                    domain,
-                    actor as outlet_name,
+                    REGEXP_REPLACE(LOWER(domain), '^www\\.', '') as domain_key,
+                    LOWER(domain) as domain,
+                    actor,
                     country,
                     partisan,
-                    COUNT(*) as count
+                    date
                 FROM clean_articles
                 WHERE {where_clause}
-                GROUP BY domain, actor, country, partisan
             ),
-            ranked AS (
+            outlet_counts AS (
                 SELECT
-                    *,
-                    ROW_NUMBER() OVER (PARTITION BY domain ORDER BY count DESC NULLS LAST) as rn
-                FROM outlet_counts
+                    domain_key,
+                    COALESCE(
+                        MAX(domain) FILTER (WHERE domain LIKE 'www.%'),
+                        MAX(domain)
+                    ) as domain,
+                    MAX(actor) FILTER (WHERE actor IS NOT NULL) as outlet_name,
+                    MAX(country) FILTER (WHERE country IS NOT NULL) as country,
+                    MAX(partisan) FILTER (WHERE partisan IS NOT NULL) as partisan,
+                    COUNT(*) as count
+                FROM base
+                GROUP BY domain_key
             )
             SELECT domain, outlet_name, country, partisan, count
-            FROM ranked
-            WHERE rn = 1
+            FROM outlet_counts
             ORDER BY count DESC
             LIMIT :limit
         """)
@@ -275,6 +382,268 @@ class StatsService:
             for row in results
         ]
 
+    def get_concentration_metrics(
+        self,
+        country: Optional[str] = None,
+        partisan: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        top_n: int = 5,
+    ) -> Dict[str, Any]:
+        """Get outlet concentration metrics for the filtered subset."""
+        conditions = ["date IS NOT NULL"]
+        params: Dict[str, Any] = {}
+
+        if country:
+            conditions.append("LOWER(country) = LOWER(:country)")
+            params["country"] = country
+        if partisan:
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
+            params["partisan"] = partisan
+        if date_from:
+            conditions.append("date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            conditions.append("date <= :date_to")
+            params["date_to"] = date_to
+
+        where_clause = " AND ".join(conditions)
+
+        total_query = text(f"""
+            SELECT COUNT(*) as total_count
+            FROM clean_articles
+            WHERE {where_clause}
+        """)
+        total_count = int((self.db.execute(total_query, params).scalar() or 0))
+
+        by_outlet_query = text(f"""
+            SELECT LOWER(domain) as domain_key, COUNT(*) as count
+            FROM clean_articles
+            WHERE {where_clause} AND domain IS NOT NULL
+            GROUP BY LOWER(domain)
+            ORDER BY count DESC
+        """)
+        outlet_rows = self.db.execute(by_outlet_query, params).fetchall()
+        counts = [int(row[1]) for row in outlet_rows]
+
+        covered_count = sum(counts)
+        coverage_share = _safe_share(covered_count, total_count)
+        n_outlets = len(counts)
+
+        if covered_count <= 0 or n_outlets == 0:
+            return {
+                "top_n": top_n,
+                "top_n_share": 0.0,
+                "hhi": 0.0,
+                "enp": 0.0,
+                "n_outlets": 0,
+                "coverage_share": coverage_share,
+            }
+
+        shares = [count / covered_count for count in counts]
+        top_n_share = sum(shares[: max(1, top_n)])
+        hhi = sum(share * share for share in shares)
+        enp = (1.0 / hhi) if hhi > 0 else 0.0
+
+        return {
+            "top_n": top_n,
+            "top_n_share": top_n_share,
+            "hhi": hhi,
+            "enp": enp,
+            "n_outlets": n_outlets,
+            "coverage_share": coverage_share,
+        }
+
+    def get_partisan_mix(
+        self,
+        country: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get partisan composition with explicit unknown/missing count."""
+        conditions = ["date IS NOT NULL"]
+        params: Dict[str, Any] = {}
+
+        if country:
+            conditions.append("LOWER(country) = LOWER(:country)")
+            params["country"] = country
+        if date_from:
+            conditions.append("date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            conditions.append("date <= :date_to")
+            params["date_to"] = date_to
+
+        where_clause = " AND ".join(conditions)
+        query = text(f"""
+            SELECT COALESCE(partisan, 'Unknown') as partisan_label, COUNT(*) as count
+            FROM clean_articles
+            WHERE {where_clause}
+            GROUP BY COALESCE(partisan, 'Unknown')
+        """)
+        results = self.db.execute(query, params).fetchall()
+
+        canonical = {"Right": 0, "Left": 0, "Other": 0}
+        unknown_count = 0
+        total_count = 0
+        for row in results:
+            label = str(row[0] or "Unknown").strip()
+            count = int(row[1] or 0)
+            total_count += count
+            if label in canonical:
+                canonical[label] += count
+            else:
+                unknown_count += count
+
+        data = [
+            {"partisan": label, "count": count, "share": _safe_share(count, total_count)}
+            for label, count in canonical.items()
+        ]
+        return {
+            "total_count": total_count,
+            "unknown_or_missing_count": unknown_count,
+            "data": data,
+        }
+
+    def get_topic_similarity(
+        self,
+        level: str = "country",
+        country: Optional[str] = None,
+        partisan: Optional[str] = None,
+        outlets: Optional[List[str]] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        limit_topics: int = 12,
+    ) -> Dict[str, Any]:
+        """Get pairwise topic similarity (cosine + JSD) for countries or outlets."""
+        level = (level or "country").lower()
+        if level not in {"country", "outlet"}:
+            level = "country"
+
+        entity_expr = "LOWER(country)" if level == "country" else "LOWER(domain)"
+        conditions = ["date IS NOT NULL", f"{entity_expr} IS NOT NULL"]
+        params: Dict[str, Any] = {"limit_topics": max(2, min(int(limit_topics), 40))}
+
+        if country:
+            conditions.append("LOWER(country) = LOWER(:country)")
+            params["country"] = country
+        if partisan:
+            conditions.append("LOWER(partisan) = LOWER(:partisan)")
+            params["partisan"] = partisan
+        if outlets:
+            normalized: List[str] = []
+            for outlet in outlets:
+                normalized.extend(domain_variants(outlet))
+            normalized = sorted({o for o in normalized if o})
+            if normalized:
+                conditions.append("LOWER(domain) = ANY(:outlets)")
+                params["outlets"] = normalized
+        if date_from:
+            conditions.append("date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            conditions.append("date <= :date_to")
+            params["date_to"] = date_to
+
+        where_clause = " AND ".join(conditions)
+        check_query = text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name='articles' AND column_name='category'
+        """)
+        has_category_column = self.db.execute(check_query).fetchone() is not None
+
+        if has_category_column:
+            top_topics_query = text(f"""
+                SELECT category, COUNT(*) as count
+                FROM clean_articles
+                WHERE {where_clause} AND category IS NOT NULL
+                GROUP BY category
+                ORDER BY count DESC
+                LIMIT :limit_topics
+            """)
+            top_rows = self.db.execute(top_topics_query, params).fetchall()
+            topics = [str(row[0]) for row in top_rows if row[0]]
+            if not topics:
+                return {"topics": [], "entities": [], "cosine": [], "jsd": []}
+
+            params["topics"] = topics
+            vector_query = text(f"""
+                SELECT {entity_expr} as entity, category, COUNT(*) as count
+                FROM clean_articles
+                WHERE {where_clause} AND category = ANY(:topics)
+                GROUP BY {entity_expr}, category
+            """)
+        else:
+            top_topics_query = text(f"""
+                SELECT category, COUNT(*) as count
+                FROM clean_articles,
+                     jsonb_array_elements_text(categories) as category
+                WHERE {where_clause} AND categories IS NOT NULL
+                GROUP BY category
+                ORDER BY count DESC
+                LIMIT :limit_topics
+            """)
+            top_rows = self.db.execute(top_topics_query, params).fetchall()
+            topics = [str(row[0]) for row in top_rows if row[0]]
+            if not topics:
+                return {"topics": [], "entities": [], "cosine": [], "jsd": []}
+
+            params["topics"] = topics
+            vector_query = text(f"""
+                WITH expanded AS (
+                    SELECT
+                        {entity_expr} as entity,
+                        jsonb_array_elements_text(categories) as category
+                    FROM clean_articles
+                    WHERE {where_clause} AND categories IS NOT NULL
+                )
+                SELECT entity, category, COUNT(*) as count
+                FROM expanded
+                WHERE category = ANY(:topics)
+                GROUP BY entity, category
+            """)
+
+        rows = self.db.execute(vector_query, params).fetchall()
+        topic_index = {topic: idx for idx, topic in enumerate(topics)}
+        vectors: Dict[str, List[float]] = {}
+
+        for entity, topic, count in rows:
+            if entity is None or topic not in topic_index:
+                continue
+            entity_key = str(entity)
+            if entity_key not in vectors:
+                vectors[entity_key] = [0.0] * len(topics)
+            vectors[entity_key][topic_index[str(topic)]] = float(count or 0)
+
+        # Convert to topic-share vectors for comparability.
+        for entity_key, vec in list(vectors.items()):
+            total = sum(vec)
+            if total <= 0:
+                vectors[entity_key] = [0.0] * len(topics)
+            else:
+                vectors[entity_key] = [value / total for value in vec]
+
+        entities = sorted(vectors.keys())
+        cosine_rows: List[Dict[str, Any]] = []
+        jsd_rows: List[Dict[str, Any]] = []
+        for a, b in combinations(entities, 2):
+            vec_a = vectors[a]
+            vec_b = vectors[b]
+            cosine_rows.append(
+                {"entity_a": a, "entity_b": b, "value": _cosine_similarity(vec_a, vec_b)}
+            )
+            jsd_rows.append(
+                {"entity_a": a, "entity_b": b, "value": _jensen_shannon_divergence(vec_a, vec_b)}
+            )
+
+        return {
+            "topics": topics,
+            "entities": entities,
+            "cosine": cosine_rows,
+            "jsd": jsd_rows,
+        }
+
     def get_outlet_profile(self, domain: str) -> Optional[Dict]:
         """Get outlet profile summary by domain."""
         domains = domain_variants(domain)
@@ -283,27 +652,28 @@ class StatsService:
 
         query = text("""
             SELECT
-                LOWER(domain) as domain_key,
-                MAX(domain) as domain,
-                MAX(actor) as outlet_name,
-                MAX(country) as country,
+                COALESCE(
+                    MAX(LOWER(domain)) FILTER (WHERE LOWER(domain) LIKE 'www.%'),
+                    MAX(LOWER(domain))
+                ) as domain,
+                MAX(actor) FILTER (WHERE actor IS NOT NULL) as outlet_name,
+                MAX(country) FILTER (WHERE country IS NOT NULL) as country,
                 COUNT(*) as total_articles,
                 MIN(date) as first_article_date,
                 MAX(date) as last_article_date
             FROM clean_articles
             WHERE LOWER(domain) = ANY(:domains)
-            GROUP BY LOWER(domain)
         """)
         result = self.db.execute(query, {"domains": domains}).fetchone()
-        if not result:
+        if not result or not result[0]:
             return None
         return {
-            "domain": result[1],
-            "outlet_name": result[2],
-            "country": result[3],
-            "total_articles": result[4],
-            "first_article_date": str(result[5]) if result[5] else None,
-            "last_article_date": str(result[6]) if result[6] else None,
+            "domain": result[0],
+            "outlet_name": result[1],
+            "country": result[2],
+            "total_articles": result[3],
+            "first_article_date": str(result[4]) if result[4] else None,
+            "last_article_date": str(result[5]) if result[5] else None,
         }
     
     def get_categories_distribution(
@@ -416,6 +786,7 @@ class StatsService:
         self,
         country: Optional[str] = None,
         partisan: Optional[str] = None,
+        outlets: Optional[List[str]] = None,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
         granularity: str = "month",
@@ -441,6 +812,14 @@ class StatsService:
         if partisan:
             conditions.append("LOWER(partisan) = LOWER(:partisan)")
             params["partisan"] = partisan
+        if outlets:
+            normalized: List[str] = []
+            for outlet in outlets:
+                normalized.extend(domain_variants(outlet))
+            normalized = sorted({o for o in normalized if o})
+            if normalized:
+                conditions.append("LOWER(domain) = ANY(:outlets)")
+                params["outlets"] = normalized
         if date_from:
             conditions.append("date >= :date_from")
             params["date_from"] = date_from
