@@ -25,6 +25,7 @@ class DummyStatsService:
                 {"partisan": "Right", "count": 50, "share": 0.5},
                 {"partisan": "Left", "count": 30, "share": 0.3},
                 {"partisan": "Other", "count": 15, "share": 0.15},
+                {"partisan": "Unclassified", "count": 5, "share": 0.05},
             ],
         }
 
@@ -76,7 +77,8 @@ class TestStatsNewEndpoints(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["unknown_or_missing_count"], 5)
-        self.assertEqual(len(payload["data"]), 3)
+        self.assertEqual(len(payload["data"]), 4)
+        self.assertEqual(payload["data"][3]["partisan"], "Unclassified")
 
     def test_topic_similarity_endpoint(self):
         response = self.client.get("/api/stats/topic-similarity", params={"level": "country"})

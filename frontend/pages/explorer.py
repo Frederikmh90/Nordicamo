@@ -21,6 +21,7 @@ from services.api import (
 
 COUNTRIES = ["denmark", "sweden", "norway", "finland"]
 ORIENTATION_ORDER = ["Left", "Right", "Other"]
+PARTISAN_MIX_ORDER = ["Right", "Left", "Other", "Unclassified"]
 MODE_COMPARE = "Country Comparison"
 MODE_DEEP_DIVE = "Country Deep Dive"
 COUNTRY_VIEW_COMPARE = "Compare countries"
@@ -517,6 +518,9 @@ def _render_compare_mode(overview: dict | None) -> None:
             ("Period", mix_period),
             ("Orientation", "All orientations"),
         )
+        st.caption(
+            "Unclassified marks articles where no outlet-orientation label is available in the indexed article record. It is shown as data coverage, not as an orientation category."
+        )
         partisan_rows = []
         for ctry in COUNTRIES:
             for year in mix_years:
@@ -535,17 +539,32 @@ def _render_compare_mode(overview: dict | None) -> None:
                                 "share": float(row.get("share", 0.0)) * 100.0,
                             }
                         )
+                    if mix.get("unknown_or_missing_count", 0) > 0 and not any(
+                        row.get("partisan") == "Unclassified" for row in mix["data"]
+                    ):
+                        total_count = float(mix.get("total_count", 0) or 0)
+                        unclassified_count = float(mix.get("unknown_or_missing_count", 0) or 0)
+                        partisan_rows.append(
+                            {
+                                "country": ctry.capitalize(),
+                                "year": str(year),
+                                "partisan": "Unclassified",
+                                "share": (unclassified_count / total_count * 100.0) if total_count else 0.0,
+                            }
+                        )
         if partisan_rows:
             df_partisan = pd.DataFrame(partisan_rows)
-            # Re-normalize displayed categories so each country-year bar sums to 100%.
-            country_totals = df_partisan.groupby(["country", "year"])["share"].transform("sum")
-            df_partisan["share"] = (df_partisan["share"] / country_totals * 100.0).fillna(0.0)
             axis_pairs = country_year_axis_pairs(COUNTRIES, mix_years)
             x_axis = country_year_multicategory_axis(axis_pairs)
-            color_map = {"Right": "#0066CC", "Left": "#DC143C", "Other": "#2ca02c"}
+            color_map = {
+                "Right": "#0066CC",
+                "Left": "#DC143C",
+                "Other": "#2ca02c",
+                "Unclassified": "#9AA3AF",
+            }
             partisan_order = [
                 label
-                for label in ["Right", "Left", "Other"]
+                for label in PARTISAN_MIX_ORDER
                 if label in set(df_partisan["partisan"].dropna())
             ]
             extra_partisans = [
@@ -573,7 +592,7 @@ def _render_compare_mode(overview: dict | None) -> None:
                         hovertemplate=(
                             "<b>%{customdata[0]}</b><br>"
                             "Year: %{customdata[1]}<br>"
-                            f"Orientation: {partisan}<br>"
+                            f"Category: {partisan}<br>"
                             "Share: %{y:.1f}%<extra></extra>"
                         ),
                     )
@@ -590,7 +609,7 @@ def _render_compare_mode(overview: dict | None) -> None:
                     y=1.05,
                     xanchor="center",
                     x=0.5,
-                    title_text="Partisan",
+                    title_text="Category",
                     font=dict(size=14),
                     title_font=dict(size=14),
                 ),

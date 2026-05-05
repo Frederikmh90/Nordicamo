@@ -9,6 +9,8 @@ import math
 import logging
 
 logger = logging.getLogger(__name__)
+_DOMAIN_PARTISAN_CACHE: Dict[str, Dict[str, Any]] = {}
+_DOMAIN_PARTISAN_CACHE_TTL_SECONDS = 300
 
 
 def domain_variants(value: str) -> List[str]:
@@ -65,6 +67,42 @@ class StatsService:
     
     def __init__(self, db: Session):
         self.db = db
+
+    def _get_domain_partisan_lookup(self, country: Optional[str] = None) -> Dict[str, str]:
+        cache_key = (country or "__all__").strip().lower()
+        now = datetime.utcnow().timestamp()
+        cached = _DOMAIN_PARTISAN_CACHE.get(cache_key)
+        if cached and now - float(cached.get("created_at", 0)) <= _DOMAIN_PARTISAN_CACHE_TTL_SECONDS:
+            return dict(cached.get("values", {}))
+
+        params: Dict[str, Any] = {}
+        country_filter = ""
+        if country:
+            country_filter = "AND LOWER(country) = LOWER(:country)"
+            params["country"] = country
+
+        query = text(f"""
+            WITH domain_partisan_counts AS (
+                SELECT
+                    REGEXP_REPLACE(LOWER(domain), '^www\\.', '') as canonical_domain,
+                    partisan,
+                    COUNT(*) as count
+                FROM clean_articles
+                WHERE domain IS NOT NULL
+                  AND partisan IN ('Right', 'Left', 'Other')
+                  {country_filter}
+                GROUP BY REGEXP_REPLACE(LOWER(domain), '^www\\.', ''), partisan
+            )
+            SELECT DISTINCT ON (canonical_domain)
+                canonical_domain,
+                partisan
+            FROM domain_partisan_counts
+            ORDER BY canonical_domain, count DESC, partisan
+        """)
+        rows = self.db.execute(query, params).fetchall()
+        values = {str(row[0]): str(row[1]) for row in rows if row[0] and row[1]}
+        _DOMAIN_PARTISAN_CACHE[cache_key] = {"created_at": now, "values": values}
+        return values
     
     def get_overview(self) -> Dict:
         """Get overview statistics."""
@@ -476,22 +514,29 @@ class StatsService:
 
         where_clause = " AND ".join(conditions)
         query = text(f"""
-            SELECT COALESCE(partisan, 'Unknown') as partisan_label, COUNT(*) as count
+            SELECT
+                COALESCE(partisan, '') as partisan_label,
+                REGEXP_REPLACE(LOWER(domain), '^www\\.', '') as canonical_domain,
+                COUNT(*) as count
             FROM clean_articles
             WHERE {where_clause}
-            GROUP BY COALESCE(partisan, 'Unknown')
+            GROUP BY COALESCE(partisan, ''), REGEXP_REPLACE(LOWER(domain), '^www\\.', '')
         """)
         results = self.db.execute(query, params).fetchall()
+        domain_partisan_lookup = self._get_domain_partisan_lookup(country=country)
 
         canonical = {"Right": 0, "Left": 0, "Other": 0}
         unknown_count = 0
         total_count = 0
         for row in results:
-            label = str(row[0] or "Unknown").strip()
-            count = int(row[1] or 0)
+            article_label = str(row[0] or "").strip()
+            canonical_domain = str(row[1] or "").strip()
+            count = int(row[2] or 0)
             total_count += count
-            if label in canonical:
-                canonical[label] += count
+            if article_label in canonical:
+                canonical[article_label] += count
+            elif canonical_domain and domain_partisan_lookup.get(canonical_domain) in canonical:
+                canonical[domain_partisan_lookup[canonical_domain]] += count
             else:
                 unknown_count += count
 
@@ -499,6 +544,13 @@ class StatsService:
             {"partisan": label, "count": count, "share": _safe_share(count, total_count)}
             for label, count in canonical.items()
         ]
+        data.append(
+            {
+                "partisan": "Unclassified",
+                "count": unknown_count,
+                "share": _safe_share(unknown_count, total_count),
+            }
+        )
         return {
             "total_count": total_count,
             "unknown_or_missing_count": unknown_count,
