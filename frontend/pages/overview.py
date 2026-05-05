@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import get_api_base_url
-from overview_helpers import format_freshness, load_db_comparison
+from overview_helpers import build_data_trust_items, format_freshness, load_db_comparison
 from ui_labels import AVG_ARTICLES_PER_OUTLET_LABEL
 from services.api import (
     fetch_articles,
@@ -75,7 +75,7 @@ def _build_ticker_sample(articles: list[dict]) -> list[dict]:
 
 def _observatory_scope_items() -> str:
     items = [
-        ("Active monitoring", "Recurring collection from publisher-operated outlet websites."),
+        ("Active observation", "Recurring collection from publisher-operated outlet websites."),
         ("Comparative analysis", "Country-level views of publication patterns, outlets, and topics."),
         ("Research archive", "Historical coverage for case selection and longitudinal work."),
     ]
@@ -85,6 +85,16 @@ def _observatory_scope_items() -> str:
         f"<div>{html.escape(body)}</div>"
         "</div>"
         for title, body in items
+    )
+
+
+def _data_trust_items(overview: dict | None, freshness: dict | None) -> str:
+    return "".join(
+        "<div class='signal-item'>"
+        f"<div class='signal-meta'>{html.escape(title)}</div>"
+        f"<div>{html.escape(body)}</div>"
+        "</div>"
+        for title, body in build_data_trust_items(overview, freshness)
     )
 
 
@@ -185,15 +195,20 @@ def show_overview_page() -> None:
 
         st.markdown(
             f"""
-            <div class='hero-right'>
-                <div class='status-card'>
-                    <div class='chip'><span class='pulse'></span> Live intake active</div>
-                    {status_body}
-                </div>
-                <div style='height:10px;'></div>
-                <div class='signal-panel'>
-                    <div class='signal-panel-title'>Observatory scope</div>
-                    {_observatory_scope_items()}
+                <div class='hero-right'>
+                    <div class='status-card'>
+                        <div class='chip'><span class='pulse'></span> Observation active</div>
+                        {status_body}
+                    </div>
+                    <div style='height:10px;'></div>
+                    <div class='signal-panel'>
+                        <div class='signal-panel-title'>Data trust</div>
+                        {_data_trust_items(overview, freshness)}
+                    </div>
+                    <div style='height:10px;'></div>
+                    <div class='signal-panel'>
+                        <div class='signal-panel-title'>Observatory scope</div>
+                        {_observatory_scope_items()}
                 </div>
             </div>
             """,

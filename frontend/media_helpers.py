@@ -59,6 +59,46 @@ def best_article_count(*values: Any) -> int:
     return max(counts, default=0)
 
 
+def related_outlets(
+    outlets: Iterable[Dict[str, Any]],
+    selected_domain: str,
+    country: str | None = None,
+    partisan: str | None = None,
+    limit: int = 6,
+) -> List[Dict[str, Any]]:
+    selected = normalize_domain(selected_domain)
+    target_country = str(country or "").strip().lower()
+    target_partisan = str(partisan or "").strip().lower()
+    candidates = []
+
+    for outlet in outlets or []:
+        domain = normalize_domain(outlet.get("domain") or "")
+        if not domain or domain == selected:
+            continue
+        outlet_country = str(outlet.get("country") or outlet.get("country_code") or "").strip().lower()
+        outlet_partisan = str(outlet.get("partisan") or "").strip().lower()
+        score = 0
+        if target_country and outlet_country == target_country:
+            score += 2
+        if target_partisan and outlet_partisan == target_partisan:
+            score += 1
+        if score <= 0:
+            continue
+        candidate = dict(outlet)
+        candidate["domain"] = domain
+        candidate["_related_score"] = score
+        candidates.append(candidate)
+
+    candidates.sort(
+        key=lambda item: (
+            -int(item.get("_related_score", 0)),
+            -best_article_count(item.get("count", 0)),
+            str(item.get("domain") or ""),
+        )
+    )
+    return candidates[:limit]
+
+
 def select_latest_articles(response: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
     if not response:
         return []

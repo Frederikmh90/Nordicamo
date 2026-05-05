@@ -11,9 +11,22 @@ class TestOverviewPageHelpers(unittest.TestCase):
 
         html = _observatory_scope_items()
 
-        self.assertIn("Active monitoring", html)
+        self.assertIn("Active observation", html)
+        self.assertNotIn("Active monitoring", html)
         self.assertIn("Comparative analysis", html)
         self.assertIn("Research archive", html)
+
+    def test_data_trust_items_render_canonical_domain_note(self):
+        from pages.overview import _data_trust_items
+
+        html = _data_trust_items(
+            {"date_range": {"latest": "2026-05-05"}},
+            {"hours_ago": 3, "last_article_date": "2026-05-05"},
+        )
+
+        self.assertIn("Latest indexed article", html)
+        self.assertIn("Canonical outlet identity", html)
+        self.assertIn("www/non-www", html)
 
 
 if __name__ == "__main__":

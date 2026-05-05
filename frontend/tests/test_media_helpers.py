@@ -78,6 +78,26 @@ class TestMediaHelpers(unittest.TestCase):
         self.assertEqual(best_article_count(1141, "102736", 105029), 105029)
         self.assertEqual(best_article_count(None, "bad", -1), 0)
 
+    def test_related_outlets_prioritizes_country_and_orientation(self):
+        from media_helpers import related_outlets
+
+        outlets = [
+            {"domain": "selected.no", "country": "norway", "partisan": "Right", "count": 100},
+            {"domain": "same-country-right.no", "country": "norway", "partisan": "Right", "count": 50},
+            {"domain": "same-country-other.no", "country": "norway", "partisan": "Other", "count": 500},
+            {"domain": "same-orientation.se", "country": "sweden", "partisan": "Right", "count": 1000},
+            {"domain": "unrelated.dk", "country": "denmark", "partisan": "Left", "count": 9999},
+        ]
+
+        related = related_outlets(outlets, "selected.no", country="norway", partisan="Right", limit=3)
+        domains = [item["domain"] for item in related]
+
+        self.assertEqual(domains[0], "same-country-right.no")
+        self.assertIn("same-country-other.no", domains)
+        self.assertIn("same-orientation.se", domains)
+        self.assertNotIn("selected.no", domains)
+        self.assertNotIn("unrelated.dk", domains)
+
 
 if __name__ == "__main__":
     unittest.main()

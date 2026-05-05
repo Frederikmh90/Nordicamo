@@ -26,6 +26,28 @@ def format_freshness(freshness: Optional[Dict[str, Any]]) -> Tuple[str, str]:
     return (freshness_text, last_article_formatted)
 
 
+def build_data_trust_items(
+    overview: Optional[Dict[str, Any]],
+    freshness: Optional[Dict[str, Any]],
+) -> List[Tuple[str, str]]:
+    latest_from_overview = ((overview or {}).get("date_range") or {}).get("latest")
+    freshness_text, latest_from_freshness = format_freshness(freshness)
+    latest_article = latest_from_freshness if latest_from_freshness != "N/A" else str(latest_from_overview or "N/A")[:10]
+
+    return [
+        ("Latest indexed article", latest_article),
+        ("Update status", freshness_text),
+        (
+            "Canonical outlet identity",
+            "www/non-www domain variants are consolidated for outlet counts, profiles, and article browsing.",
+        ),
+        (
+            "Collection status",
+            "Displayed dates and counts come from the live API; outlet gaps should be read as coverage limits, not editorial absence.",
+        ),
+    ]
+
+
 def load_db_comparison(path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     base_dir = Path(__file__).resolve().parent
     compare_path = Path(path) if path else base_dir / "data" / "db_compare.json"

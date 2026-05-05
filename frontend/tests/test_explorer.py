@@ -45,12 +45,13 @@ class TestExplorerHelpers(unittest.TestCase):
         self.assertEqual(country_view_to_state(COUNTRY_VIEW_COMPARE), (MODE_COMPARE, None))
         self.assertEqual(country_view_to_state("Denmark"), (MODE_DEEP_DIVE, "denmark"))
 
-    def test_deep_dive_view_options_includes_topics(self):
+    def test_deep_dive_view_options_use_question_oriented_labels(self):
         from pages.explorer import deep_dive_view_options
 
         options = deep_dive_view_options()
-        self.assertIn("Topics Over Time", options)
-        self.assertEqual(options[0], "Total Count")
+        self.assertIn("Topic development", options)
+        self.assertEqual(options[0], "Publication volume")
+        self.assertIn("Outlet drivers", options)
 
     def test_default_year_range_prefers_2016_2026(self):
         from pages.explorer import _default_year_range

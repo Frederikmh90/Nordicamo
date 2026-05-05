@@ -12,6 +12,7 @@ from media_helpers import (
     filter_outlets,
     latest_article_dates_by_domain,
     normalize_domain,
+    related_outlets,
     select_latest_articles,
 )
 from services.api import (
@@ -156,6 +157,13 @@ def show_media_page() -> None:
             selected_profile_articles = profile_articles
             latest_articles = select_latest_articles(latest_response, limit=5)
             latest_date = str(latest_articles[0].get("date"))[:10] if latest_articles else "Not in latest sample"
+            related = related_outlets(
+                outlets,
+                selected_domain=profile_domain,
+                country=profile_country,
+                partisan=profile_partisan,
+                limit=6,
+            )
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
             st.markdown(
                 f"<div class='section-title'>{html.escape(profile.get('outlet_name') or profile_domain or selected_domain)}</div>",
@@ -194,7 +202,45 @@ def show_media_page() -> None:
                     st.rerun()
                 except Exception:
                     st.experimental_set_query_params(page="Media")
-            st.divider()
+            if related:
+                st.markdown("<div class='section-title'>Related outlets</div>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='subtle' style='margin-bottom:8px;'>Same country and/or orientation, sorted by indexed article volume.</div>",
+                    unsafe_allow_html=True,
+                )
+                related_cols = st.columns(3)
+                for idx, outlet in enumerate(related):
+                    with related_cols[idx % 3]:
+                        domain = normalize_domain(outlet.get("domain") or "")
+                        name = outlet.get("outlet_name") or domain
+                        count = best_article_count(outlet.get("count", 0))
+                        outlet_country = outlet.get("country") or outlet.get("country_code") or "Unknown"
+                        outlet_partisan = outlet.get("partisan") or "Orientation unknown"
+                        st.markdown(
+                            f"""
+                            <div class="media-card">
+                                <div>
+                                    <h3>{html.escape(str(name))}</h3>
+                                    <div class="media-domain">{html.escape(domain)}</div>
+                                    <div class="media-pill-row">
+                                        <span class="media-pill">{html.escape(str(outlet_country).capitalize())}</span>
+                                        <span class="media-pill">{html.escape(str(outlet_partisan))}</span>
+                                    </div>
+                                    <div class="media-count">{count:,} articles</div>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                        if st.button("View Media", key=f"related_media_{idx}", use_container_width=True):
+                            try:
+                                st.query_params["page"] = "Media"
+                                st.query_params["media"] = domain
+                                st.rerun()
+                            except Exception:
+                                st.experimental_set_query_params(page="Media", media=domain)
+            render_footer_bar()
+            return
 
     # Removed summary caption to reduce clutter
 

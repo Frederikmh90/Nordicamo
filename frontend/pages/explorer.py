@@ -59,7 +59,7 @@ def country_view_to_state(view: str | None) -> tuple[str, str | None]:
 
 
 def deep_dive_view_options() -> list[str]:
-    return ["Total Count", "Separate Outlets", "Partisan Accumulated", "Topics Over Time"]
+    return ["Publication volume", "Outlet drivers", "Orientation over time", "Topic development"]
 
 
 def topics_metric_transform(df: pd.DataFrame, mode: str) -> tuple[pd.DataFrame, str]:
@@ -270,10 +270,10 @@ def _default_country_view() -> str:
 def _render_country_view_selector() -> tuple[str, str | None]:
     st.markdown(
         """
-        <div class='task-card'>
-            <strong>Choose a country view</strong>
-            <div class='task-label'>Use Compare countries for cross-national patterns, or jump directly into one country as the primary workspace.</div>
-        </div>
+            <div class='task-card'>
+                <strong>Choose a country view</strong>
+                <div class='task-label'>Use Compare countries for cross-national questions, or select one country as the primary analytical workspace.</div>
+            </div>
         """,
         unsafe_allow_html=True,
     )
@@ -518,111 +518,112 @@ def _render_compare_mode(overview: dict | None) -> None:
             else:
                 st.info("No concentration data available for this selection.")
 
-    with st.container(border=True):
-        st.subheader("Topics Over Time (All Countries)")
-        _chart_context(
-            "Which article categories rise or fall over time across the full Nordic selection?",
-            "article count",
-            ("Period", period),
-            ("Granularity", granularity),
-            ("Orientation", partisan_label),
-        )
-        topic_data = fetch_categories_over_time(
-            country=None,
-            partisan=partisan_filter,
-            granularity=granularity.lower(),
-            date_from=date_from,
-            date_to=date_to,
-            limit=8,
-        )
-        if topic_data and topic_data.get("data"):
-            df_topics = pd.DataFrame(topic_data["data"])
-            if not df_topics.empty and {"date", "category", "count"}.issubset(df_topics.columns):
-                df_topics["date"] = pd.to_datetime(df_topics["date"], errors="coerce")
-                df_topics = df_topics.sort_values("date")
-                fig_topics = go.Figure()
-                for topic in df_topics["category"].dropna().unique():
-                    rows = df_topics[df_topics["category"] == topic]
-                    fig_topics.add_trace(
-                        go.Scatter(
-                            x=rows["date"],
-                            y=rows["count"],
-                            mode="lines",
-                            name=str(topic),
-                            line=dict(width=2),
+    with st.expander("Advanced topic diagnostics", expanded=False):
+        with st.container(border=True):
+            st.subheader("Topics Over Time (All Countries)")
+            _chart_context(
+                "Which article categories rise or fall over time across the full Nordic selection?",
+                "article count",
+                ("Period", period),
+                ("Granularity", granularity),
+                ("Orientation", partisan_label),
+            )
+            topic_data = fetch_categories_over_time(
+                country=None,
+                partisan=partisan_filter,
+                granularity=granularity.lower(),
+                date_from=date_from,
+                date_to=date_to,
+                limit=8,
+            )
+            if topic_data and topic_data.get("data"):
+                df_topics = pd.DataFrame(topic_data["data"])
+                if not df_topics.empty and {"date", "category", "count"}.issubset(df_topics.columns):
+                    df_topics["date"] = pd.to_datetime(df_topics["date"], errors="coerce")
+                    df_topics = df_topics.sort_values("date")
+                    fig_topics = go.Figure()
+                    for topic in df_topics["category"].dropna().unique():
+                        rows = df_topics[df_topics["category"] == topic]
+                        fig_topics.add_trace(
+                            go.Scatter(
+                                x=rows["date"],
+                                y=rows["count"],
+                                mode="lines",
+                                name=str(topic),
+                                line=dict(width=2),
+                            )
                         )
+                    fig_topics.update_layout(
+                        title="",
+                        xaxis_title="Date",
+                        yaxis_title="Articles",
+                        height=430,
+                        hovermode="x unified",
+                        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
+                        margin=dict(b=90),
                     )
-                fig_topics.update_layout(
-                    title="",
-                    xaxis_title="Date",
-                    yaxis_title="Articles",
-                    height=430,
-                    hovermode="x unified",
-                    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
-                    margin=dict(b=90),
-                )
-                _plot(fig_topics)
+                    _plot(fig_topics)
+                else:
+                    st.info("No topic data available for this selection.")
             else:
                 st.info("No topic data available for this selection.")
-        else:
-            st.info("No topic data available for this selection.")
 
-    with st.container(border=True):
-        st.subheader("Agenda Similarity (Countries)")
-        _chart_context(
-            "How similar are country agendas based on relative topic distributions?",
-            "cosine similarity",
-            ("Period", period),
-            ("Orientation", partisan_label),
-        )
-        st.caption(
-            "Computed from normalized topic-share vectors built from article category counts, not full-text semantics."
-        )
-        similarity = fetch_topic_similarity(
-            level="country",
-            partisan=partisan_filter,
-            date_from=date_from,
-            date_to=date_to,
-            limit_topics=12,
-        )
-        if similarity and similarity.get("entities"):
-            entities = [str(e).capitalize() for e in similarity.get("entities", [])]
-            raw_records = similarity.get("cosine", [])
-            records = []
-            for row in raw_records:
-                records.append(
-                    {
-                        "entity_a": str(row.get("entity_a", "")).capitalize(),
-                        "entity_b": str(row.get("entity_b", "")).capitalize(),
-                        "value": float(row.get("value", 0.0)),
-                    }
-                )
-            matrix = _matrix_records_to_df(records, entities)
-            if not matrix.empty:
-                zmin = 0.8
-                zmax = 1.0
-                colorscale = "Blues"
-                heatmap = go.Figure(
-                    data=go.Heatmap(
-                        z=matrix.values,
-                        x=matrix.columns,
-                        y=matrix.index,
-                        colorscale=colorscale,
-                        zmin=zmin,
-                        zmax=zmax,
+        with st.container(border=True):
+            st.subheader("Agenda Similarity (Countries)")
+            _chart_context(
+                "How similar are country agendas based on relative topic distributions?",
+                "cosine similarity",
+                ("Period", period),
+                ("Orientation", partisan_label),
+            )
+            st.caption(
+                "Computed from normalized topic-share vectors built from article category counts, not full-text semantics."
+            )
+            similarity = fetch_topic_similarity(
+                level="country",
+                partisan=partisan_filter,
+                date_from=date_from,
+                date_to=date_to,
+                limit_topics=12,
+            )
+            if similarity and similarity.get("entities"):
+                entities = [str(e).capitalize() for e in similarity.get("entities", [])]
+                raw_records = similarity.get("cosine", [])
+                records = []
+                for row in raw_records:
+                    records.append(
+                        {
+                            "entity_a": str(row.get("entity_a", "")).capitalize(),
+                            "entity_b": str(row.get("entity_b", "")).capitalize(),
+                            "value": float(row.get("value", 0.0)),
+                        }
                     )
-                )
-                heatmap.update_layout(
-                    height=420,
-                    xaxis_title="",
-                    yaxis_title="",
-                    margin=dict(t=20, b=20, l=20, r=20),
-                )
-                _plot(heatmap)
+                matrix = _matrix_records_to_df(records, entities)
+                if not matrix.empty:
+                    zmin = 0.8
+                    zmax = 1.0
+                    colorscale = "Blues"
+                    heatmap = go.Figure(
+                        data=go.Heatmap(
+                            z=matrix.values,
+                            x=matrix.columns,
+                            y=matrix.index,
+                            colorscale=colorscale,
+                            zmin=zmin,
+                            zmax=zmax,
+                        )
+                    )
+                    heatmap.update_layout(
+                        height=420,
+                        xaxis_title="",
+                        yaxis_title="",
+                        margin=dict(t=20, b=20, l=20, r=20),
+                    )
+                    _plot(heatmap)
+                else:
+                    st.info("No similarity matrix available for this selection.")
             else:
-                st.info("No similarity matrix available for this selection.")
-        else:
-            st.info("No similarity data available for this selection.")
+                st.info("No similarity data available for this selection.")
 
 
 def _render_deep_dive_mode(overview: dict | None) -> None:
@@ -671,7 +672,7 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
     partisan_label = _partisan_label(partisan_filter)
 
     with st.container(border=True):
-        if view_type == "Total Count":
+        if view_type == "Publication volume":
             _chart_context(
                 f"How does total publication volume develop in {country.capitalize()}?",
                 "article count",
@@ -680,7 +681,7 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
                 ("Granularity", granularity),
                 ("Orientation", partisan_label),
             )
-        elif view_type == "Separate Outlets":
+        elif view_type == "Outlet drivers":
             _chart_context(
                 f"Which selected outlets drive publication volume in {country.capitalize()}?",
                 "article count",
@@ -689,7 +690,7 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
                 ("Granularity", granularity),
                 ("Orientation", partisan_label),
             )
-        elif view_type == "Partisan Accumulated":
+        elif view_type == "Orientation over time":
             _chart_context(
                 f"How does publication volume differ by orientation in {country.capitalize()}?",
                 "article count",
@@ -706,7 +707,7 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
                 ("Granularity", granularity),
                 ("Orientation", partisan_label),
             )
-        if view_type == "Total Count":
+        if view_type == "Publication volume":
             time_data = fetch_articles_over_time(
                 country=country,
                 partisan=partisan_filter,
@@ -730,7 +731,7 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
                 _plot(fig)
             else:
                 st.info("No data available for selected filters.")
-        elif view_type == "Separate Outlets":
+        elif view_type == "Outlet drivers":
             outlets_list = fetch_top_outlets(
                 country=country, partisan=partisan_filter, date_from=date_from, date_to=date_to, limit=20
             )
@@ -787,7 +788,7 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
                         st.info("No data available for selected outlets.")
                 else:
                     st.info("No data available for selected outlets.")
-        elif view_type == "Partisan Accumulated":
+        elif view_type == "Orientation over time":
             fig = go.Figure()
             partisan_colors = {"Right": "#0066CC", "Left": "#DC143C", "Other": "#2ca02c"}
             for partisan in ["Right", "Left", "Other"]:
@@ -862,8 +863,9 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
             else:
                 st.info("No topic data available for this selection.")
 
-    with st.container(border=True):
-        st.subheader("Topics by Media")
+    with st.expander("Advanced outlet and topic diagnostics", expanded=False):
+        with st.container(border=True):
+            st.subheader("Topics by Media")
         _chart_context(
             "How do selected outlets differ in their topic profiles?",
             "article count or percent",
@@ -1083,8 +1085,8 @@ def show_explorer_page() -> None:
     overview = fetch_overview()
 
     st.markdown(
-        "<div class='subtle' style='font-size:1.15rem;'>Compare alternative media signals across Denmark, Finland, Norway, and Sweden, "
-        "or switch to a country deep dive to inspect outlet-level activity over time. Filters stay scoped to the selected analytical task.</div>",
+        "<div class='subtle' style='font-size:1.15rem;'>Compare alternative news media landscapes across Denmark, Finland, Norway, and Sweden, "
+        "or switch to a country deep dive to inspect outlet-level activity, structure, and topics over time. Filters stay scoped to the selected analytical task.</div>",
         unsafe_allow_html=True,
     )
 
