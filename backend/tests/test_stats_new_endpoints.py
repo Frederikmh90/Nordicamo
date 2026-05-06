@@ -46,6 +46,82 @@ class DummyStatsService:
             "jsd": [{"entity_a": "denmark", "entity_b": "sweden", "value": 0.18}],
         }
 
+    def get_landing_bundle(self):
+        return {
+            "overview": {
+                "total_articles": 100,
+                "total_outlets": 10,
+                "date_range": {"earliest": "2021-01-01", "latest": "2026-03-25"},
+                "by_country": {"denmark": 40, "sweden": 60},
+                "by_partisan": {"Right": 70, "Left": 30},
+                "avg_articles_per_outlet": 10.0,
+                "growth_rate_per_year": 3.5,
+                "coverage_years": "2021-2026",
+            },
+            "freshness": {
+                "last_article_date": "2026-03-25",
+                "last_updated": "2026-03-25 12:00:00",
+                "hours_ago": 3,
+            },
+            "latest_articles": [
+                {
+                    "id": 1,
+                    "title": "Latest article",
+                    "url": "https://example.com/a",
+                    "date": "2026-03-25",
+                    "domain": "example.com",
+                }
+            ],
+            "articles_over_time": {
+                "granularity": "month",
+                "filters": {
+                    "country": None,
+                    "partisan": None,
+                    "date_from": "2021-01-01",
+                    "date_to": "2026-12-31",
+                },
+                "data": [{"country": "denmark", "date": "2026-03", "count": 10}],
+            },
+        }
+
+    def get_analysis_bundle(self):
+        return {
+            "overview": self.get_landing_bundle()["overview"],
+            "filters": {
+                "date_from": "2016-01-01",
+                "date_to": "2026-12-31",
+                "year_from": 2016,
+                "year_to": 2026,
+                "granularity": "month",
+                "partisan": None,
+                "recent_years": [2023, 2024, 2025, 2026],
+            },
+            "articles_over_time": {
+                "granularity": "month",
+                "filters": {
+                    "country": None,
+                    "partisan": None,
+                    "date_from": "2016-01-01",
+                    "date_to": "2026-12-31",
+                },
+                "data": [{"country": "denmark", "date": "2026-03", "count": 10}],
+            },
+            "partisan_mix": [
+                {"country": "denmark", "year": 2026, "partisan": "Right", "count": 10, "share": 1.0}
+            ],
+            "concentration": [
+                {"country": "denmark", "year": 2026, "enp": 2.0, "hhi": 0.5, "n_outlets": 2}
+            ],
+            "categories_over_time": {"filters": {}, "data": []},
+            "topic_similarity": {
+                "filters": {},
+                "topics": [],
+                "entities": [],
+                "cosine": [],
+                "jsd": [],
+            },
+        }
+
 
 class TestStatsNewEndpoints(unittest.TestCase):
     def setUp(self):
@@ -93,6 +169,26 @@ class TestStatsNewEndpoints(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["filters"]["level"], "country_partisan")
+
+    def test_landing_endpoint_returns_compact_bundle(self):
+        response = self.client.get("/api/stats/landing")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("overview", payload)
+        self.assertIn("freshness", payload)
+        self.assertIn("latest_articles", payload)
+        self.assertIn("articles_over_time", payload)
+        self.assertEqual(payload["latest_articles"][0]["title"], "Latest article")
+
+    def test_analysis_endpoint_returns_default_bundle(self):
+        response = self.client.get("/api/stats/analysis")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("overview", payload)
+        self.assertIn("articles_over_time", payload)
+        self.assertIn("partisan_mix", payload)
+        self.assertIn("concentration", payload)
+        self.assertEqual(payload["filters"]["granularity"], "month")
 
 
 if __name__ == "__main__":

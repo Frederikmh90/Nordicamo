@@ -3,7 +3,7 @@
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import combinations
 import math
 import logging
@@ -11,6 +11,20 @@ import logging
 logger = logging.getLogger(__name__)
 _DOMAIN_PARTISAN_CACHE: Dict[str, Dict[str, Any]] = {}
 _DOMAIN_PARTISAN_CACHE_TTL_SECONDS = 300
+_LANDING_BUNDLE_CACHE: Dict[str, Dict[str, Any]] = {}
+_LANDING_BUNDLE_CACHE_TTL_SECONDS = 300
+_ANALYSIS_BUNDLE_CACHE: Dict[str, Dict[str, Any]] = {}
+_ANALYSIS_BUNDLE_CACHE_TTL_SECONDS = 300
+
+CATEGORY_EXPANSION_JOIN = """
+CROSS JOIN LATERAL jsonb_array_elements_text(categories) AS raw_category(category_text)
+CROSS JOIN LATERAL jsonb_array_elements_text(
+    CASE
+        WHEN raw_category.category_text ~ '^\\s*\\[\\s*"' THEN raw_category.category_text::jsonb
+        ELSE jsonb_build_array(raw_category.category_text)
+    END
+) AS expanded_category(category)
+"""
 
 
 def domain_variants(value: str) -> List[str]:
@@ -69,6 +83,7 @@ class StatsService:
         self.db = db
 
     def _get_domain_partisan_lookup(self, country: Optional[str] = None) -> Dict[str, str]:
+        """Map outlet domains to startlist orientation labels from actors."""
         cache_key = (country or "__all__").strip().lower()
         now = datetime.utcnow().timestamp()
         cached = _DOMAIN_PARTISAN_CACHE.get(cache_key)
@@ -78,26 +93,45 @@ class StatsService:
         params: Dict[str, Any] = {}
         country_filter = ""
         if country:
-            country_filter = "AND LOWER(country) = LOWER(:country)"
+            country_filter = "AND LOWER(actor_country) = LOWER(:country)"
             params["country"] = country
 
         query = text(f"""
-            WITH domain_partisan_counts AS (
+            WITH actor_domains AS (
                 SELECT
-                    REGEXP_REPLACE(LOWER(domain), '^www\\.', '') as canonical_domain,
+                    REGEXP_REPLACE(
+                        SPLIT_PART(REGEXP_REPLACE(LOWER(TRIM(actor_domain)), '^https?://', ''), '/', 1),
+                        '^www\\.',
+                        ''
+                    ) as canonical_domain,
                     partisan,
-                    COUNT(*) as count
-                FROM clean_articles
-                WHERE domain IS NOT NULL
+                    country as actor_country
+                FROM actors
+                WHERE actor_domain IS NOT NULL
+                  AND TRIM(actor_domain) <> ''
                   AND partisan IN ('Right', 'Left', 'Other')
-                  {country_filter}
-                GROUP BY REGEXP_REPLACE(LOWER(domain), '^www\\.', ''), partisan
+                UNION ALL
+                SELECT
+                    REGEXP_REPLACE(
+                        SPLIT_PART(REGEXP_REPLACE(LOWER(TRIM(website)), '^https?://', ''), '/', 1),
+                        '^www\\.',
+                        ''
+                    ) as canonical_domain,
+                    partisan,
+                    country as actor_country
+                FROM actors
+                WHERE website IS NOT NULL
+                  AND TRIM(website) <> ''
+                  AND partisan IN ('Right', 'Left', 'Other')
             )
             SELECT DISTINCT ON (canonical_domain)
                 canonical_domain,
                 partisan
-            FROM domain_partisan_counts
-            ORDER BY canonical_domain, count DESC, partisan
+            FROM actor_domains
+            WHERE canonical_domain IS NOT NULL
+              AND canonical_domain <> ''
+              {country_filter}
+            ORDER BY canonical_domain, partisan
         """)
         rows = self.db.execute(query, params).fetchall()
         values = {str(row[0]): str(row[1]) for row in rows if row[0] and row[1]}
@@ -635,11 +669,11 @@ class StatsService:
             """)
         else:
             top_topics_query = text(f"""
-                SELECT category, COUNT(*) as count
-                FROM clean_articles,
-                     jsonb_array_elements_text(categories) as category
+                SELECT expanded_category.category, COUNT(*) as count
+                FROM clean_articles
+                {CATEGORY_EXPANSION_JOIN}
                 WHERE {where_clause} AND categories IS NOT NULL
-                GROUP BY category
+                GROUP BY expanded_category.category
                 ORDER BY count DESC
                 LIMIT :limit_topics
             """)
@@ -653,8 +687,9 @@ class StatsService:
                 WITH expanded AS (
                     SELECT
                         {entity_expr} as entity,
-                        jsonb_array_elements_text(categories) as category
+                        expanded_category.category as category
                     FROM clean_articles
+                    {CATEGORY_EXPANSION_JOIN}
                     WHERE {where_clause} AND categories IS NOT NULL
                 )
                 SELECT entity, category, COUNT(*) as count
@@ -790,11 +825,12 @@ class StatsService:
             
             query = text(f"""
                 SELECT 
-                    jsonb_array_elements_text(categories) as category,
+                    expanded_category.category as category,
                     COUNT(*) as count
                 FROM clean_articles
+                {CATEGORY_EXPANSION_JOIN}
                 WHERE {where_clause}
-                GROUP BY category
+                GROUP BY expanded_category.category
                 ORDER BY count DESC
             """)
         
@@ -922,11 +958,11 @@ class StatsService:
             """)
         else:
             top_categories_query = text(f"""
-                SELECT category, COUNT(*) as count
-                FROM clean_articles,
-                     jsonb_array_elements_text(categories) as category
+                SELECT expanded_category.category as category, COUNT(*) as count
+                FROM clean_articles
+                {CATEGORY_EXPANSION_JOIN}
                 WHERE {where_clause} AND categories IS NOT NULL
-                GROUP BY category
+                GROUP BY expanded_category.category
                 ORDER BY count DESC
                 LIMIT :limit
             """)
@@ -940,8 +976,9 @@ class StatsService:
                 WITH expanded AS (
                     SELECT
                         {date_format} as date,
-                        jsonb_array_elements_text(categories) as category
+                        expanded_category.category as category
                     FROM clean_articles
+                    {CATEGORY_EXPANSION_JOIN}
                     WHERE {where_clause} AND categories IS NOT NULL
                 )
                 SELECT
@@ -1094,6 +1131,323 @@ class StatsService:
             "last_updated": str(last_updated) if last_updated else None,
             "hours_ago": hours_ago
         }
+
+    def get_landing_bundle(self, latest_limit: int = 120) -> Dict[str, Any]:
+        """Get the landing-page payload in a small number of database queries."""
+        cache_key = str(latest_limit)
+        now_ts = datetime.utcnow().timestamp()
+        cached = _LANDING_BUNDLE_CACHE.get(cache_key)
+        if cached and now_ts - float(cached.get("created_at", 0)) <= _LANDING_BUNDLE_CACHE_TTL_SECONDS:
+            return dict(cached.get("value", {}))
+
+        stats_query = text("""
+            SELECT
+                COUNT(*) as total_articles,
+                COUNT(DISTINCT domain) as total_outlets,
+                MIN(date) as earliest_date,
+                MAX(date) as latest_date,
+                MAX(updated_at) as last_updated,
+                COUNT(*)::float / NULLIF(COUNT(DISTINCT domain), 0) as avg_articles_per_outlet
+            FROM articles
+        """)
+        result = self.db.execute(stats_query).fetchone()
+
+        country_rows = self.db.execute(
+            text("""
+                SELECT country, COUNT(*) as count
+                FROM articles
+                WHERE country IS NOT NULL
+                GROUP BY country
+                ORDER BY count DESC
+            """)
+        ).fetchall()
+        by_country = {row[0]: int(row[1] or 0) for row in country_rows}
+
+        partisan_rows = self.db.execute(
+            text("""
+                SELECT partisan, COUNT(*) as count
+                FROM articles
+                WHERE partisan IS NOT NULL
+                GROUP BY partisan
+                ORDER BY count DESC
+            """)
+        ).fetchall()
+        by_partisan = {row[0]: int(row[1] or 0) for row in partisan_rows}
+
+        growth_results = self.db.execute(
+            text("""
+                SELECT EXTRACT(YEAR FROM date)::int as year, COUNT(*) as count
+                FROM articles
+                WHERE date IS NOT NULL
+                GROUP BY EXTRACT(YEAR FROM date)::int
+                ORDER BY year
+            """)
+        ).fetchall()
+        growth_rate = None
+        if len(growth_results) >= 2:
+            years = [int(row[0]) for row in growth_results]
+            counts = [int(row[1] or 0) for row in growth_results]
+            n = len(years)
+            sum_x = sum(years)
+            sum_y = sum(counts)
+            sum_xy = sum(years[i] * counts[i] for i in range(n))
+            sum_x2 = sum(year * year for year in years)
+            denominator = n * sum_x2 - sum_x * sum_x
+            if denominator != 0:
+                growth_rate = round((n * sum_xy - sum_x * sum_y) / denominator, 1)
+
+        latest_date = result[3] if result and result[3] else None
+        last_updated = result[4] if result and result[4] else None
+        hours_ago = None
+        if last_updated:
+            try:
+                now = datetime.now(last_updated.tzinfo) if last_updated.tzinfo else datetime.now()
+                hours_ago = int((now - last_updated).total_seconds() / 3600)
+            except Exception:
+                hours_ago = None
+
+        earliest = result[2] if result and result[2] else None
+        coverage_years = None
+        if earliest and latest_date:
+            coverage_years = f"{earliest.year}-{latest_date.year}"
+
+        overview = {
+            "total_articles": int(result[0] or 0) if result else 0,
+            "total_outlets": int(result[1] or 0) if result else 0,
+            "date_range": {
+                "earliest": str(earliest) if earliest else None,
+                "latest": str(latest_date) if latest_date else None,
+            },
+            "by_country": by_country,
+            "by_partisan": by_partisan,
+            "avg_articles_per_outlet": round(float(result[5] or 0.0), 1) if result else 0.0,
+            "growth_rate_per_year": growth_rate,
+            "coverage_years": coverage_years,
+        }
+        freshness = {
+            "last_article_date": str(latest_date) if latest_date else None,
+            "last_updated": str(last_updated) if last_updated else None,
+            "hours_ago": hours_ago,
+        }
+
+        latest_date_from = None
+        if latest_date:
+            latest_date_from = latest_date - timedelta(days=14)
+
+        latest_date_condition = "date >= :date_from" if latest_date_from else "TRUE"
+        latest_articles_query = text(f"""
+            SELECT id, title, url, date, domain
+            FROM clean_articles
+            WHERE date IS NOT NULL
+              AND {latest_date_condition}
+            ORDER BY date DESC NULLS LAST
+            LIMIT :limit
+        """)
+        latest_params: Dict[str, Any] = {"limit": max(1, min(latest_limit, 200))}
+        if latest_date_from:
+            latest_params["date_from"] = latest_date_from
+        latest_rows = self.db.execute(latest_articles_query, latest_params).fetchall()
+        latest_articles = [
+            {
+                "id": row[0],
+                "title": row[1],
+                "url": row[2],
+                "date": str(row[3]) if row[3] else None,
+                "domain": row[4],
+            }
+            for row in latest_rows
+        ]
+
+        start_year = 2021
+        end_year = latest_date.year if latest_date else datetime.now().year
+        time_query = text("""
+            SELECT
+                lower(country) as country,
+                TO_CHAR(date, 'YYYY-MM') as date,
+                COUNT(*) as count
+            FROM clean_articles
+            WHERE date >= :date_from
+              AND date <= :date_to
+              AND country IS NOT NULL
+            GROUP BY lower(country), TO_CHAR(date, 'YYYY-MM')
+            ORDER BY date, country
+        """)
+        date_from = f"{start_year}-01-01"
+        date_to = f"{end_year}-12-31"
+        time_rows = self.db.execute(time_query, {"date_from": date_from, "date_to": date_to}).fetchall()
+        articles_over_time = {
+            "granularity": "month",
+            "filters": {
+                "country": None,
+                "partisan": None,
+                "date_from": date_from,
+                "date_to": date_to,
+            },
+            "data": [
+                {"country": row[0], "date": row[1], "count": int(row[2] or 0)}
+                for row in time_rows
+            ],
+        }
+
+        bundle = {
+            "overview": overview,
+            "freshness": freshness,
+            "latest_articles": latest_articles,
+            "articles_over_time": articles_over_time,
+        }
+        _LANDING_BUNDLE_CACHE[cache_key] = {"created_at": now_ts, "value": bundle}
+        return bundle
+
+    def get_analysis_bundle(self) -> Dict[str, Any]:
+        """Get default Analysis compare-mode data without repeated endpoint calls."""
+        cache_key = "default"
+        now_ts = datetime.utcnow().timestamp()
+        cached = _ANALYSIS_BUNDLE_CACHE.get(cache_key)
+        if cached and now_ts - float(cached.get("created_at", 0)) <= _ANALYSIS_BUNDLE_CACHE_TTL_SECONDS:
+            return dict(cached.get("value", {}))
+
+        overview = self.get_landing_bundle().get("overview", {})
+        year_min = 2016
+        latest = (overview.get("date_range") or {}).get("latest")
+        try:
+            year_max = min(int(str(latest)[:4]), 2026) if latest else 2026
+        except Exception:
+            year_max = 2026
+        if year_max < year_min:
+            year_min, year_max = year_max, year_min
+
+        date_from = f"{year_min}-01-01"
+        date_to = f"{year_max}-12-31"
+        countries = ["denmark", "sweden", "norway", "finland"]
+        recent_years_values = list(range(max(year_min, year_max - 3), year_max + 1))
+
+        time_rows = self.db.execute(
+            text("""
+                SELECT
+                    LOWER(country) as country,
+                    TO_CHAR(date, 'YYYY-MM') as date,
+                    COUNT(*) as count
+                FROM clean_articles
+                WHERE date >= :date_from
+                  AND date <= :date_to
+                  AND country IS NOT NULL
+                GROUP BY LOWER(country), TO_CHAR(date, 'YYYY-MM')
+                ORDER BY date, country
+            """),
+            {"date_from": date_from, "date_to": date_to},
+        ).fetchall()
+        articles_over_time = {
+            "granularity": "month",
+            "filters": {
+                "country": None,
+                "partisan": None,
+                "date_from": date_from,
+                "date_to": date_to,
+            },
+            "data": [
+                {"country": row[0], "date": str(row[1]), "count": int(row[2] or 0)}
+                for row in time_rows
+            ],
+        }
+
+        mix_rows = self.db.execute(
+            text("""
+                SELECT
+                    LOWER(country) as country,
+                    EXTRACT(YEAR FROM date)::int as year,
+                    CASE
+                        WHEN partisan IN ('Right', 'Left', 'Other') THEN partisan
+                        ELSE 'Unclassified'
+                    END as partisan,
+                    COUNT(*) as count
+                FROM clean_articles
+                WHERE date >= :date_from
+                  AND date <= :date_to
+                  AND country IS NOT NULL
+                GROUP BY LOWER(country), EXTRACT(YEAR FROM date)::int,
+                         CASE
+                             WHEN partisan IN ('Right', 'Left', 'Other') THEN partisan
+                             ELSE 'Unclassified'
+                         END
+            """),
+            {"date_from": f"{recent_years_values[0]}-01-01", "date_to": f"{recent_years_values[-1]}-12-31"},
+        ).fetchall()
+        mix_totals: Dict[tuple[str, int], int] = {}
+        for row in mix_rows:
+            key = (str(row[0]), int(row[1]))
+            mix_totals[key] = mix_totals.get(key, 0) + int(row[3] or 0)
+        partisan_mix = []
+        for row in mix_rows:
+            country = str(row[0])
+            year = int(row[1])
+            count = int(row[3] or 0)
+            total = mix_totals.get((country, year), 0)
+            partisan_mix.append(
+                {
+                    "country": country,
+                    "year": year,
+                    "partisan": str(row[2]),
+                    "count": count,
+                    "share": _safe_share(count, total),
+                }
+            )
+
+        outlet_rows = self.db.execute(
+            text("""
+                SELECT
+                    LOWER(country) as country,
+                    EXTRACT(YEAR FROM date)::int as year,
+                    REGEXP_REPLACE(LOWER(domain), '^www\\.', '') as domain_key,
+                    COUNT(*) as count
+                FROM clean_articles
+                WHERE date >= :date_from
+                  AND date <= :date_to
+                  AND country IS NOT NULL
+                  AND domain IS NOT NULL
+                GROUP BY LOWER(country), EXTRACT(YEAR FROM date)::int,
+                         REGEXP_REPLACE(LOWER(domain), '^www\\.', '')
+            """),
+            {"date_from": f"{recent_years_values[0]}-01-01", "date_to": f"{recent_years_values[-1]}-12-31"},
+        ).fetchall()
+        grouped_counts: Dict[tuple[str, int], List[int]] = {}
+        for row in outlet_rows:
+            key = (str(row[0]), int(row[1]))
+            grouped_counts.setdefault(key, []).append(int(row[3] or 0))
+        concentration = []
+        for country in countries:
+            for year in recent_years_values:
+                counts = grouped_counts.get((country, year), [])
+                covered_count = sum(counts)
+                hhi = 0.0
+                if covered_count > 0:
+                    hhi = sum((count / covered_count) ** 2 for count in counts)
+                concentration.append(
+                    {
+                        "country": country,
+                        "year": year,
+                        "enp": (1.0 / hhi) if hhi > 0 else 0.0,
+                        "hhi": hhi,
+                        "n_outlets": len(counts),
+                    }
+                )
+
+        bundle = {
+            "overview": overview,
+            "filters": {
+                "date_from": date_from,
+                "date_to": date_to,
+                "year_from": year_min,
+                "year_to": year_max,
+                "granularity": "month",
+                "partisan": None,
+                "recent_years": recent_years_values,
+            },
+            "articles_over_time": articles_over_time,
+            "partisan_mix": partisan_mix,
+            "concentration": concentration,
+        }
+        _ANALYSIS_BUNDLE_CACHE[cache_key] = {"created_at": now_ts, "value": bundle}
+        return bundle
     
     def get_enhanced_overview(self) -> Dict:
         """Get enhanced overview with additional metrics."""

@@ -26,6 +26,30 @@ def fetch_overview():
         return None
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_landing_bundle():
+    """Fetch the compact landing-page payload."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/stats/landing", timeout=API_TIMEOUT_LONG)
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching landing overview: {exc}")
+        return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_analysis_bundle():
+    """Fetch the default Analysis page payload."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/stats/analysis", timeout=API_TIMEOUT_LONG)
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        st.error(f"Error fetching analysis overview: {exc}")
+        return None
+
+
 @st.cache_data(ttl=300)
 def fetch_enhanced_overview():
     """Fetch enhanced overview with additional metrics."""

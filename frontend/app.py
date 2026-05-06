@@ -592,13 +592,35 @@ st.markdown("""
     }
     .about-card h4 {
         margin-top: 0;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
+    }
+    .about-card h5 {
+        margin-top: 18px;
+        margin-bottom: 0;
+        line-height: 1.1;
     }
     .about-card p {
-        margin: 0;
+        margin: 0 0 10px 0;
+    }
+    .about-card h4 + p,
+    .about-card h5 + p {
+        margin-top: 0;
+    }
+    .about-card p + h5,
+    .about-card ul + h5 {
+        margin-top: 22px;
+    }
+    .about-card p:last-child,
+    .about-card ul:last-child {
+        margin-bottom: 0;
+    }
+    .about-card ul {
+        margin-top: 4px;
+        margin-bottom: 12px;
+        padding-left: 20px;
     }
     .about-card-spacer {
-        height: 10px;
+        height: 8px;
     }
     .affiliation-row {
         display: flex;

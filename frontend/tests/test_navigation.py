@@ -13,7 +13,9 @@ class TestNavigation(unittest.TestCase):
             TOPBAR_NAV_ITEMS,
             [
                 ("Platform", "Nordicamo"),
-                ("Countries", "Explorer"),
+                ("Analysis", "Explorer"),
+                ("Browse Media", "Media"),
+                ("About", "About"),
                 ("Request Access", "GetAccess"),
             ],
         )
@@ -23,6 +25,7 @@ class TestNavigation(unittest.TestCase):
 
         self.assertEqual(LEGACY_PAGE_ALIASES["Full Data Access"], "GetAccess")
         self.assertEqual(LEGACY_PAGE_ALIASES["Countries"], "Explorer")
+        self.assertEqual(LEGACY_PAGE_ALIASES["Analysis"], "Explorer")
 
     def test_platform_and_countries_share_dark_blue_nav_color(self):
         from pathlib import Path

@@ -12,25 +12,18 @@ def show_about_page() -> None:
     st.markdown('<h1 class="main-header">About Nordicamo</h1>', unsafe_allow_html=True)
     st.markdown(
         "<div class='about-intro'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative "
-        "platform for studying alternative news media across the Nordic countries (currently Denmark, Finland, Norway, "
-        "and Sweden). In Nordicamo, alternative news media refers to outlets that self-position as alternatives to "
-        "mainstream journalism or political institutions, for example by emphasizing anti-establishment critique, "
-        "advocacy, or corrective framings of public debate. The observatory focuses on publisher-operated websites "
-        "(domains) rather than social media accounts, and it is designed for research, journalism, and teaching.</div>",
+        "platform for studying alternative news media across Denmark, Finland, Norway, and Sweden. Alternative news media "
+        "refers to publisher-operated outlets that position themselves as alternatives to mainstream journalism, political "
+        "institutions, or dominant public narratives. The observatory focuses on outlet websites rather than social media "
+        "accounts.</div>",
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<div class='about-intro'>Nordicamo provides structured access to alternative news media content for "
-        "cross-national comparison. The platform combines scalable computational summaries with opportunities for "
-        "qualitative interpretation, supporting analyses of how alternative information environments evolve over time "
-        "and differ across countries.</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<div class='about-intro'>Nordicamo is updated on a recurring basis, and coverage varies by outlet depending on "
-        "site structure, publication activity, and technical accessibility. The platform is currently descriptive by "
-        "design (v1.0) and intended to support inquiry and documentation rather than definitive evaluation of outlets "
-        "or audiences. Code and version history are available on "
+        "<div class='about-intro'>The platform provides structured data and descriptive analytics for comparing publication "
+        "patterns, outlet structures, and topic distributions across countries and over time. Nordicamo supports case "
+        "selection, documentation, and exploratory analysis; it should not be read as a complete census of all alternative "
+        "media activity or as an evaluation of outlet influence, audience reach, or societal impact. Code and version history "
+        "are available on "
         "<a href='https://github.com/Frederikmh90/Nordicamo' target='_blank' rel='noopener'>GitHub</a>.</div>",
         unsafe_allow_html=True,
     )
@@ -47,18 +40,19 @@ def show_about_page() -> None:
         st.markdown(
             """
             <div class="about-card top-row">
-                <h4>Outlet Selection and Coverage</h4>
+                <h4>Outlet Selection</h4>
                 <p>Outlets are included based on (1) sustained publication activity and (2) a clear alternative positioning, reflected in public
                 self-descriptions, editorial statements, or consistent framing practices. Country experts contribute to identifying relevant
                 outlets and validating contextual relevance. Nordicamo maintains a versioned outlet list that documents additions, removals,
                 and selection rationales over time.</p>
+                <h5>Coverage Limits</h5>
                 <p>To support both current analysis and historical research, Nordicamo distinguishes between:</p>
                 <ul>
                     <li>Active observatory: outlets meeting a minimum activity threshold in the current monitoring period.</li>
                     <li>Historical data: a broader historical collection that may include outlets primarily active in earlier decades (e.g., the 2000s-2010s).</li>
                 </ul>
-                <p>Collection focuses on outlets that are active in 2025 or have accessible web presence in 2025, so historical
-                coverage reflects the subset of outlets that remain technically reachable today.</p>
+                <p>Collection focuses on recently updated outlets or outlets with an accessible web presence, so historical
+                coverage reflects the subset of outlets that remain technically reachable at the time of collection.</p>
                 <p>Because selection criteria prioritize stability and technical feasibility, the dataset may underrepresent short-lived projects,
                 irregular publishers, and outlets without indexable structures.</p>
             </div>
@@ -74,8 +68,9 @@ def show_about_page() -> None:
                 <p>Nordicamo is designed for research on politically sensitive material and follows safeguards to reduce potential harm.</p>
                 <h5>Collection and data minimization</h5>
                 <p>Collection is limited to publicly accessible content and is conducted with respect for site policies (robots.txt/Terms of
-                Service where applicable) and operational constraints (rate limiting/backoff). Nordicamo practices data minimization: it avoids
-                collecting unnecessary personal data and excludes high-risk identifiers where not essential for research purposes.</p>
+                Service where applicable) and operational constraints (rate limiting/backoff). Nordicamo avoids collecting user-level data,
+                private communications, comments, and social media interactions unless explicitly required for a separately approved research
+                purpose.</p>
                 <div class="about-card-spacer"></div>
                 <h5>Access, governance, and retention</h5>
                 <p>Access to raw content is restricted and governed by clear access tiers, logging, and retention/deletion practices.
@@ -124,9 +119,8 @@ def show_about_page() -> None:
                     <li>identify cross-national similarities and differences,</li>
                     <li>guide deeper qualitative work (close reading, case selection, or interpretive analysis).</li>
                 </ul>
-                <p>Nordicamo does not aim to produce causal explanations in v1.0, nor does it treat the dataset as a complete census of all
-                alternative media activity. Results should be interpreted in light of documented selection criteria, technical constraints, and
-                the evolving nature of the outlet list.</p>
+                <p>Nordicamo is descriptive and exploratory. Results should be interpreted in light of the documented selection criteria,
+                technical constraints, and the evolving nature of the outlet list.</p>
             </div>
             """,
             unsafe_allow_html=True,

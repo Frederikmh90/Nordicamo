@@ -430,6 +430,20 @@ async def get_full_enhanced_overview(db: Session = Depends(get_db)):
     return service.get_enhanced_overview_full()
 
 
+@router.get("/landing")
+async def get_landing_bundle(db: Session = Depends(get_db)):
+    """Get a compact landing-page payload."""
+    service = StatsService(db)
+    return service.get_landing_bundle()
+
+
+@router.get("/analysis")
+async def get_analysis_bundle(db: Session = Depends(get_db)):
+    """Get compact default Analysis page payload."""
+    service = StatsService(db)
+    return service.get_analysis_bundle()
+
+
 @router.get("/data-freshness")
 async def get_data_freshness(db: Session = Depends(get_db)):
     """Get data freshness information (last updated timestamp)."""

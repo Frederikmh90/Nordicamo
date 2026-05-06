@@ -8,6 +8,7 @@ import streamlit as st
 from media_helpers import consolidate_outlets
 from pages.footer import render_footer_bar
 from services.api import (
+    fetch_analysis_bundle,
     fetch_articles_over_time,
     fetch_articles_over_time_by_outlet,
     fetch_categories,
@@ -432,7 +433,7 @@ def _render_categories_table(country: str) -> None:
     )
 
 
-def _render_compare_mode(overview: dict | None) -> None:
+def _render_compare_mode(overview: dict | None, analysis_bundle: dict | None = None) -> None:
     year_min, year_max = _year_bounds(overview)
     default_year_from, default_year_to = _default_year_range(year_min, year_max)
 
@@ -466,6 +467,14 @@ def _render_compare_mode(overview: dict | None) -> None:
     date_to = f"{year_to}-12-31"
     period = _period_label(year_from, year_to)
     partisan_label = _partisan_label(partisan_filter)
+    bundle_filters = (analysis_bundle or {}).get("filters", {})
+    can_use_bundle = (
+        analysis_bundle
+        and bundle_filters.get("date_from") == date_from
+        and bundle_filters.get("date_to") == date_to
+        and bundle_filters.get("granularity") == granularity.lower()
+        and bundle_filters.get("partisan") == partisan_filter
+    )
 
     with st.container(border=True):
         _chart_context(
@@ -476,14 +485,25 @@ def _render_compare_mode(overview: dict | None) -> None:
             ("Orientation", partisan_label),
         )
         fig = go.Figure()
-        for ctry in COUNTRIES:
-            time_data = fetch_articles_over_time(
-                country=ctry,
-                partisan=partisan_filter,
-                granularity=granularity.lower(),
-                date_from=date_from,
-                date_to=date_to,
-            )
+        if can_use_bundle and analysis_bundle.get("articles_over_time"):
+            bundled_rows = pd.DataFrame(analysis_bundle["articles_over_time"].get("data", []))
+            country_time_data = {
+                ctry: {"data": bundled_rows[bundled_rows["country"] == ctry].to_dict("records")}
+                for ctry in COUNTRIES
+                if not bundled_rows.empty
+            }
+        else:
+            country_time_data = {
+                ctry: fetch_articles_over_time(
+                    country=ctry,
+                    partisan=partisan_filter,
+                    granularity=granularity.lower(),
+                    date_from=date_from,
+                    date_to=date_to,
+                )
+                for ctry in COUNTRIES
+            }
+        for ctry, time_data in country_time_data.items():
             if time_data and time_data.get("data"):
                 df_time = pd.DataFrame(time_data["data"])
                 df_time["date"] = pd.to_datetime(df_time["date"], errors="coerce")
@@ -519,39 +539,56 @@ def _render_compare_mode(overview: dict | None) -> None:
             ("Orientation", "All orientations"),
         )
         st.caption(
-            "Unclassified marks articles where no outlet-orientation label is available in the indexed article record. It is shown as data coverage, not as an orientation category."
+            "Outlet orientations are taken from the startlist. Unclassified only appears when an indexed outlet is missing a startlist orientation label."
         )
         partisan_rows = []
-        for ctry in COUNTRIES:
-            for year in mix_years:
-                mix = fetch_partisan_mix(
-                    country=ctry,
-                    date_from=f"{year}-01-01",
-                    date_to=f"{year}-12-31",
+        if can_use_bundle and analysis_bundle.get("partisan_mix"):
+            for row in analysis_bundle.get("partisan_mix", []):
+                if int(row.get("year", 0)) not in mix_years:
+                    continue
+                if row.get("partisan") == "Unclassified" and float(row.get("count", 0) or 0) <= 0:
+                    continue
+                partisan_rows.append(
+                    {
+                        "country": str(row.get("country", "")).capitalize(),
+                        "year": str(row.get("year")),
+                        "partisan": row.get("partisan"),
+                        "share": float(row.get("share", 0.0)) * 100.0,
+                    }
                 )
-                if mix and mix.get("data"):
-                    for row in mix["data"]:
-                        partisan_rows.append(
-                            {
-                                "country": ctry.capitalize(),
-                                "year": str(year),
-                                "partisan": row.get("partisan"),
-                                "share": float(row.get("share", 0.0)) * 100.0,
-                            }
-                        )
-                    if mix.get("unknown_or_missing_count", 0) > 0 and not any(
-                        row.get("partisan") == "Unclassified" for row in mix["data"]
-                    ):
-                        total_count = float(mix.get("total_count", 0) or 0)
-                        unclassified_count = float(mix.get("unknown_or_missing_count", 0) or 0)
-                        partisan_rows.append(
-                            {
-                                "country": ctry.capitalize(),
-                                "year": str(year),
-                                "partisan": "Unclassified",
-                                "share": (unclassified_count / total_count * 100.0) if total_count else 0.0,
-                            }
-                        )
+        else:
+            for ctry in COUNTRIES:
+                for year in mix_years:
+                    mix = fetch_partisan_mix(
+                        country=ctry,
+                        date_from=f"{year}-01-01",
+                        date_to=f"{year}-12-31",
+                    )
+                    if mix and mix.get("data"):
+                        for row in mix["data"]:
+                            if row.get("partisan") == "Unclassified" and float(row.get("count", 0) or 0) <= 0:
+                                continue
+                            partisan_rows.append(
+                                {
+                                    "country": ctry.capitalize(),
+                                    "year": str(year),
+                                    "partisan": row.get("partisan"),
+                                    "share": float(row.get("share", 0.0)) * 100.0,
+                                }
+                            )
+                        if mix.get("unknown_or_missing_count", 0) > 0 and not any(
+                            row.get("partisan") == "Unclassified" for row in mix["data"]
+                        ):
+                            total_count = float(mix.get("total_count", 0) or 0)
+                            unclassified_count = float(mix.get("unknown_or_missing_count", 0) or 0)
+                            partisan_rows.append(
+                                {
+                                    "country": ctry.capitalize(),
+                                    "year": str(year),
+                                    "partisan": "Unclassified",
+                                    "share": (unclassified_count / total_count * 100.0) if total_count else 0.0,
+                                }
+                            )
         if partisan_rows:
             df_partisan = pd.DataFrame(partisan_rows)
             axis_pairs = country_year_axis_pairs(COUNTRIES, mix_years)
@@ -634,23 +671,35 @@ def _render_compare_mode(overview: dict | None) -> None:
             "HHI measures concentration by summing squared outlet shares. Here it is inverted (1/HHI), so the number reads like the approximate count of equally sized outlets behind the observed output. Higher values mean a more distributed outlet landscape; lower values mean a few outlets dominate."
         )
         concentration_rows = []
-        for ctry in COUNTRIES:
-            for year in diversity_years:
-                metrics = fetch_concentration_metrics(
-                    country=ctry,
-                    partisan=partisan_filter,
-                    date_from=f"{year}-01-01",
-                    date_to=f"{year}-12-31",
-                    top_n=5,
+        if can_use_bundle and analysis_bundle.get("concentration"):
+            for row in analysis_bundle.get("concentration", []):
+                if int(row.get("year", 0)) not in diversity_years:
+                    continue
+                concentration_rows.append(
+                    {
+                        "country": str(row.get("country", "")).capitalize(),
+                        "year": str(row.get("year")),
+                        "enp": float(row.get("enp", 0.0)),
+                    }
                 )
-                if metrics:
-                    concentration_rows.append(
-                        {
-                            "country": ctry.capitalize(),
-                            "year": str(year),
-                            "enp": float(metrics.get("enp", 0.0)),
-                        }
+        else:
+            for ctry in COUNTRIES:
+                for year in diversity_years:
+                    metrics = fetch_concentration_metrics(
+                        country=ctry,
+                        partisan=partisan_filter,
+                        date_from=f"{year}-01-01",
+                        date_to=f"{year}-12-31",
+                        top_n=5,
                     )
+                    if metrics:
+                        concentration_rows.append(
+                            {
+                                "country": ctry.capitalize(),
+                                "year": str(year),
+                                "enp": float(metrics.get("enp", 0.0)),
+                            }
+                        )
         if concentration_rows:
             df_concentration = pd.DataFrame(concentration_rows)
             df_concentration = df_concentration.rename(columns={"enp": "effective_outlet_count"})
@@ -697,7 +746,7 @@ def _render_compare_mode(overview: dict | None) -> None:
         else:
             st.info("No concentration data available for this selection.")
 
-    with st.expander("Advanced topic diagnostics", expanded=False):
+    if st.toggle("Advanced topic diagnostics", key="cmp_advanced_topics_loaded"):
         with st.container(border=True):
             st.subheader("Topics Over Time (All Countries)")
             _chart_context(
@@ -1063,6 +1112,28 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
             else:
                 st.info("No topic data available for this selection.")
 
+    left, right = st.columns(2)
+    with left:
+        with st.container(border=True):
+            st.subheader(f"Outlets ({country.capitalize()})")
+            _chart_context(
+                "Which outlets contribute the most indexed articles in this selection?",
+                "article count",
+                ("Country", country.capitalize()),
+                ("Period", period),
+            )
+            _render_outlets_table(country=country, date_from=date_from, date_to=date_to)
+    with right:
+        with st.container(border=True):
+            st.subheader(f"News Categories ({country.capitalize()})")
+            _chart_context(
+                "Which categories are most common in this country?",
+                "article count and percent",
+                ("Country", country.capitalize()),
+                ("Period", "all indexed years"),
+            )
+            _render_categories_table(country=country)
+
     with st.expander("Advanced outlet and topic diagnostics", expanded=False):
         with st.container(border=True):
             st.subheader("Topics by Media")
@@ -1254,35 +1325,14 @@ def _render_deep_dive_mode(overview: dict | None) -> None:
                 else:
                     st.info("No similarity data available for selected outlets.")
 
-    left, right = st.columns(2)
-    with left:
-        with st.container(border=True):
-            st.subheader(f"Outlets ({country.capitalize()})")
-            _chart_context(
-                "Which outlets contribute the most indexed articles in this selection?",
-                "article count",
-                ("Country", country.capitalize()),
-                ("Period", period),
-            )
-            _render_outlets_table(country=country, date_from=date_from, date_to=date_to)
-    with right:
-        with st.container(border=True):
-            st.subheader(f"News Categories ({country.capitalize()})")
-            _chart_context(
-                "Which categories are most common in this country?",
-                "article count and percent",
-                ("Country", country.capitalize()),
-                ("Period", "all indexed years"),
-            )
-            _render_categories_table(country=country)
-
 
 def show_explorer_page() -> None:
     """Show comparative Explorer with explicit mode separation."""
     _inject_explorer_styles()
 
-    st.markdown('<h1 class="main-header">Countries</h1>', unsafe_allow_html=True)
-    overview = fetch_overview()
+    st.markdown('<h1 class="main-header">Analysis</h1>', unsafe_allow_html=True)
+    analysis_bundle = fetch_analysis_bundle() or {}
+    overview = analysis_bundle.get("overview") or fetch_overview()
 
     st.markdown(
         "<div class='subtle' style='font-size:1.15rem;'>Compare alternative news media landscapes across Denmark, Finland, Norway, and Sweden, "
@@ -1301,7 +1351,7 @@ def show_explorer_page() -> None:
     st.divider()
 
     if mode == MODE_COMPARE:
-        _render_compare_mode(overview)
+        _render_compare_mode(overview, analysis_bundle)
     else:
         _render_deep_dive_mode(overview)
 
