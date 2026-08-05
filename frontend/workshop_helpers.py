@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 
 MAX_BROWSER_PREVIEW_ROWS = 100
@@ -76,6 +77,12 @@ def preview_records(articles: list[dict[str, Any]], max_rows: int = MAX_BROWSER_
     return rows
 
 
+def safe_article_url(value: object) -> str:
+    """Return only absolute HTTP(S) article URLs for browser links."""
+    url = str(value or "").strip()
+    return url if urlparse(url).scheme in {"http", "https"} else ""
+
+
 def build_access_request_context(
     project: WorkshopProject,
     countries: list[str],
@@ -102,6 +109,7 @@ def build_access_request_context(
         lines.append(f"Keyword: {keyword}")
     lines.extend(
         [
+            "Purpose and affiliation: [Please add before sending]",
             f"Requested sample size: up to {requested_rows:,} rows",
             "Requested fields: article ID, date, country, outlet, orientation, categories, title, and URL.",
         ]

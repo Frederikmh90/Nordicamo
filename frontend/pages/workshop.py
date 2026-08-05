@@ -24,6 +24,7 @@ from workshop_helpers import (
     build_access_request_context,
     preview_records,
     project_by_key,
+    safe_article_url,
 )
 
 
@@ -88,7 +89,7 @@ def _article_preview(
     categories: list[str],
     keyword: str,
     preview_size: int,
-) -> tuple[int, list[dict]]:
+) -> tuple[int | None, list[dict]]:
     result = fetch_articles(
         query=keyword or None,
         country=country,
@@ -98,16 +99,21 @@ def _article_preview(
         categories=categories or None,
         limit=preview_size,
         offset=0,
-    ) or {}
+    )
+    if result is None:
+        return None, []
     return int(result.get("total") or 0), result.get("articles") or []
 
 
-def _render_preview(total: int, articles: list[dict], label: str) -> None:
+def _render_preview(total: int | None, articles: list[dict], label: str) -> None:
     st.markdown("<div class='section-title'>Data preview</div>", unsafe_allow_html=True)
     st.caption(
         f"{label}: showing at most {MAX_BROWSER_PREVIEW_ROWS} metadata records in the browser. "
         "This is a preview, not a public dataset download."
     )
+    if total is None:
+        st.warning("The preview could not be loaded. You can still request the selected dataset.")
+        return
     if not articles:
         st.info("No indexed articles match this selection.")
         return
@@ -120,8 +126,12 @@ def _render_preview(total: int, articles: list[dict], label: str) -> None:
         for header in headers:
             value = str(record.get(header) or "")
             if header == "Article URL" and value:
-                safe_url = html.escape(value, quote=True)
-                cells.append(f"<td><a href='{safe_url}' target='_blank' rel='noopener'>Open article</a></td>")
+                article_url = safe_article_url(value)
+                if article_url:
+                    safe_url = html.escape(article_url, quote=True)
+                    cells.append(f"<td><a href='{safe_url}' target='_blank' rel='noopener'>Open article</a></td>")
+                else:
+                    cells.append("<td></td>")
             else:
                 cells.append(f"<td>{html.escape(value)}</td>")
         body.append("<tr>" + "".join(cells) + "</tr>")
@@ -197,6 +207,8 @@ def _render_project_chart(
             fig = px.line(frame, x="date", y="count", color="country", markers=True)
             fig.update_layout(height=380, xaxis_title="Date", yaxis_title="Indexed articles", hovermode="x unified")
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+        else:
+            st.info("No chart data is available for this selection.")
         return
 
     if project_key == "outlet_drivers":
@@ -207,6 +219,8 @@ def _render_project_chart(
             fig = px.bar(frame, x="count", y="domain", orientation="h")
             fig.update_layout(height=380, xaxis_title="Indexed articles", yaxis_title="Outlet")
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+        else:
+            st.info("No chart data is available for this selection.")
         return
 
     if project_key == "trace_topic":
@@ -226,6 +240,8 @@ def _render_project_chart(
             fig = px.line(frame, x="date", y="count", color="category")
             fig.update_layout(height=380, xaxis_title="Date", yaxis_title="Indexed articles", hovermode="x unified")
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+        else:
+            st.info("No chart data is available for this selection.")
 
 
 def show_workshop_page() -> None:
@@ -272,7 +288,9 @@ def show_workshop_page() -> None:
         )
     date_from, date_to = f"{year_from}-01-01", f"{year_to}-12-31"
 
-    outlet_options = _outlet_options(country, date_from, date_to)
+    outlet_options: list[str] = []
+    if project.key in {"outlet_drivers", "trace_topic", "reporting_case"}:
+        outlet_options = _outlet_options(country, date_from, date_to)
     selected_outlets: list[str] = []
     selected_categories: list[str] = []
     keyword = ""
@@ -302,9 +320,16 @@ def show_workshop_page() -> None:
 
     preview_size = st.select_slider("Preview rows", options=[25, 50, 100], value=50)
     if project.key == "compare_agendas":
-        first_total, first_articles = _article_preview(country, date_from, date_to, [], [], "", min(50, preview_size))
-        second_total, second_articles = _article_preview(comparison_country, date_from, date_to, [], [], "", min(50, preview_size))
-        _render_preview(first_total + second_total, first_articles + second_articles, f"Combined preview for {country.capitalize()} and {comparison_country.capitalize()}")
+        first_limit = min(50, max(1, preview_size // 2))
+        second_limit = min(50, preview_size - first_limit)
+        first_total, first_articles = _article_preview(country, date_from, date_to, [], [], "", first_limit)
+        second_total, second_articles = _article_preview(comparison_country, date_from, date_to, [], [], "", second_limit)
+        combined_total = None if first_total is None or second_total is None else first_total + second_total
+        _render_preview(
+            combined_total,
+            first_articles + second_articles,
+            f"Combined preview for {country.capitalize()} and {comparison_country.capitalize()}",
+        )
         selected_countries = [country, comparison_country]
     else:
         total, articles = _article_preview(

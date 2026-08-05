@@ -54,6 +54,14 @@ class TestWorkshopHelpers(unittest.TestCase):
         self.assertIn("example.dk", context)
         self.assertIn("migration", context)
         self.assertIn("500 rows", context)
+        self.assertIn("Purpose and affiliation", context)
+
+    def test_safe_article_url_allows_only_http_urls(self):
+        from workshop_helpers import safe_article_url
+
+        self.assertEqual(safe_article_url("https://example.dk/article"), "https://example.dk/article")
+        self.assertEqual(safe_article_url("javascript:alert(1)"), "")
+        self.assertEqual(safe_article_url("/relative-article"), "")
 
     def test_unknown_project_uses_compare_project(self):
         from workshop_helpers import project_by_key
