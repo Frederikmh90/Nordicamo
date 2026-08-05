@@ -129,6 +129,17 @@ def country_view_to_state(view: str | None) -> tuple[str, str | None]:
     return MODE_DEEP_DIVE, normalized.lower()
 
 
+def country_view_summary(view: str | None) -> str:
+    """Describe the active analysis lens in one concise sentence."""
+    normalized = normalize_country_view(view)
+    if normalized == COUNTRY_VIEW_COMPARE:
+        return "Compare publication patterns, outlet structure, orientations, and topics across the Nordic region."
+    return (
+        "Examine publication patterns, outlet structure, and topics within the "
+        f"{country_landscape_label(normalized).lower()}."
+    )
+
+
 def deep_dive_view_options() -> list[str]:
     return ["Publication volume", "Outlet drivers", "Orientation over time", "Topic development"]
 
@@ -315,8 +326,29 @@ def _inject_explorer_styles() -> None:
         }
         .explorer-mode-label {
             color: var(--color-text-muted);
-            font-size: 0.9rem;
-            margin-bottom: 0.35rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 0.45rem;
+        }
+        .analysis-workspace {
+            border-top: 1px solid var(--color-border);
+            border-bottom: 1px solid var(--color-border);
+            padding: 16px 0 14px;
+            margin: 22px 0 24px;
+        }
+        .analysis-workspace-heading {
+            color: var(--color-text);
+            font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .analysis-workspace-summary {
+            color: var(--color-text-muted);
+            font-size: 0.92rem;
+            margin: 8px 0 0;
         }
         </style>
         """,
@@ -371,32 +403,35 @@ def _default_country_view() -> str:
 def _render_country_view_selector() -> tuple[str, str | None]:
     st.markdown(
         """
-            <div class='task-card'>
-                <strong>Choose a country view</strong>
-                <div class='task-label'>Use Compare countries for cross-national questions, or select one country as the primary analytical workspace.</div>
-            </div>
+        <div class='analysis-workspace'>
+            <div class='explorer-mode-label'>Analysis lens</div>
+            <div class='analysis-workspace-heading'>Choose a country scope</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("<div class='explorer-mode-label'>Country view</div>", unsafe_allow_html=True)
     default_view = normalize_country_view(_default_country_view())
     if hasattr(st, "segmented_control"):
         selected = st.segmented_control(
-            "Country view",
+            "Country scope",
             options=COUNTRY_VIEW_OPTIONS,
             default=default_view,
             selection_mode="single",
             label_visibility="collapsed",
             key="country_view",
         )
-        return country_view_to_state(selected)
-    selected = st.radio(
-        "Country view",
-        options=COUNTRY_VIEW_OPTIONS,
-        index=COUNTRY_VIEW_OPTIONS.index(default_view),
-        horizontal=True,
-        key="country_view",
-        label_visibility="collapsed",
+    else:
+        selected = st.radio(
+            "Country scope",
+            options=COUNTRY_VIEW_OPTIONS,
+            index=COUNTRY_VIEW_OPTIONS.index(default_view),
+            horizontal=True,
+            key="country_view",
+            label_visibility="collapsed",
+        )
+    st.markdown(
+        f"<div class='analysis-workspace-summary'>{country_view_summary(selected)}</div>",
+        unsafe_allow_html=True,
     )
     return country_view_to_state(selected)
 
@@ -1330,28 +1365,24 @@ def show_explorer_page() -> None:
     """Show comparative Explorer with explicit mode separation."""
     _inject_explorer_styles()
 
-    st.markdown('<h1 class="main-header">Analysis</h1>', unsafe_allow_html=True)
     analysis_bundle = fetch_analysis_bundle() or {}
     overview = analysis_bundle.get("overview") or fetch_overview()
 
-    st.markdown(
-        "<div class='subtle' style='font-size:1.15rem;'>Compare alternative news media landscapes across Denmark, Finland, Norway, and Sweden, "
-        "or switch to a country deep dive to inspect outlet-level activity, structure, and topics over time.</div>",
-        unsafe_allow_html=True,
-    )
-    workshop_col, workshop_copy = st.columns([1, 3])
+    heading_col, workshop_col = st.columns([4, 1])
+    with heading_col:
+        st.markdown('<h1 class="main-header">Analysis</h1>', unsafe_allow_html=True)
+        st.markdown(
+            "<div class='subtle' style='font-size:1.05rem;'>Explore alternative news media landscapes across the Nordic region or focus on one country as a primary analytical workspace.</div>",
+            unsafe_allow_html=True,
+        )
     with workshop_col:
-        if st.button("Open Research Workshop", type="primary", use_container_width=True):
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        if st.button("Research Workshop", use_container_width=True):
             try:
                 st.query_params["page"] = "Workshop"
             except Exception:
                 st.experimental_set_query_params(page="Workshop")
             st.rerun()
-    with workshop_copy:
-        st.markdown(
-            "<div class='subtle' style='padding-top:8px;'>Guided projects for comparative research, reporting cases, and bounded dataset previews.</div>",
-            unsafe_allow_html=True,
-        )
 
     mode, selected_country = _render_country_view_selector()
     st.session_state["explorer_mode"] = mode
@@ -1360,9 +1391,6 @@ def show_explorer_page() -> None:
         st.session_state["deep_country"] = selected_country
     else:
         st.session_state["quick_country"] = None
-    _render_global_country_kpis(overview)
-    st.divider()
-
     if mode == MODE_COMPARE:
         _render_compare_mode(overview, analysis_bundle)
     else:

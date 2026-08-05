@@ -91,6 +91,7 @@ class TestExplorerHelpers(unittest.TestCase):
             COUNTRY_VIEW_COMPARE,
             MODE_COMPARE,
             MODE_DEEP_DIVE,
+            country_view_summary,
             country_view_to_state,
             normalize_country_view,
         )
@@ -98,6 +99,8 @@ class TestExplorerHelpers(unittest.TestCase):
         self.assertEqual(normalize_country_view("bad"), COUNTRY_VIEW_COMPARE)
         self.assertEqual(country_view_to_state(COUNTRY_VIEW_COMPARE), (MODE_COMPARE, None))
         self.assertEqual(country_view_to_state("Denmark"), (MODE_DEEP_DIVE, "denmark"))
+        self.assertIn("across the Nordic region", country_view_summary(COUNTRY_VIEW_COMPARE))
+        self.assertIn("danish alternative media landscape", country_view_summary("Denmark").lower())
 
     def test_deep_dive_view_options_use_question_oriented_labels(self):
         from pages.explorer import deep_dive_view_options
