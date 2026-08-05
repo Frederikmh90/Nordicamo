@@ -344,6 +344,6 @@ def show_workshop_page() -> None:
     _request_selection(
         project, selected_countries, date_from, date_to, selected_outlets, selected_categories, keyword
     )
-    if st.button("Back to Analysis"):
+    if st.button("Back to Overview"):
         _set_page("Explorer")
     render_footer_bar()

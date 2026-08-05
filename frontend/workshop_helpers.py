@@ -3,12 +3,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Any
 from urllib.parse import urlparse
 
 
 MAX_BROWSER_PREVIEW_ROWS = 100
 REQUEST_ROW_OPTIONS = (100, 500, 1000)
+CATEGORY_LABELS = (
+    "Politics & Governance",
+    "Immigration & National Identity",
+    "Health & Medicine",
+    "Media & Censorship",
+    "International Relations & Conflict",
+    "Economy & Labor",
+    "Crime & Justice",
+    "Social Issues & Culture",
+    "Environment, Climate & Energy",
+    "Technology, Science & Digital Society",
+    "Other",
+)
+CATEGORY_LABELS_BY_CASEFOLD = {label.casefold(): label for label in CATEGORY_LABELS}
 
 
 @dataclass(frozen=True)
@@ -54,22 +69,43 @@ def project_by_key(value: str | None) -> WorkshopProject:
     return WORKSHOP_PROJECTS[0]
 
 
+def format_category_labels(value: object) -> str:
+    """Present category values as clean, canonical labels in the browser."""
+    labels: list[str] = []
+
+    def append_value(item: object) -> None:
+        if isinstance(item, (list, tuple)):
+            for nested_item in item:
+                append_value(nested_item)
+            return
+        text = str(item or "").strip()
+        if not text:
+            return
+        if text.startswith("["):
+            try:
+                append_value(json.loads(text))
+                return
+            except json.JSONDecodeError:
+                text = text.strip("[] \\t\\r\\n\\\"'")
+        canonical = CATEGORY_LABELS_BY_CASEFOLD.get(text.casefold(), text)
+        if canonical and canonical not in labels:
+            labels.append(canonical)
+
+    append_value(value)
+    return ", ".join(labels[:3]) if labels else "Not yet categorized"
+
+
 def preview_records(articles: list[dict[str, Any]], max_rows: int = MAX_BROWSER_PREVIEW_ROWS) -> list[dict[str, str]]:
     """Return metadata-only rows suitable for the public browser preview."""
     rows: list[dict[str, str]] = []
     for article in articles[:max_rows]:
-        categories = article.get("categories") or []
-        if isinstance(categories, list):
-            category_label = ", ".join(str(category) for category in categories[:3])
-        else:
-            category_label = str(categories)
         rows.append(
             {
                 "Date": str(article.get("date") or ""),
                 "Country": str(article.get("country") or "").capitalize(),
                 "Outlet": str(article.get("domain") or ""),
                 "Orientation": str(article.get("partisan") or ""),
-                "Categories": category_label,
+                "Categories": format_category_labels(article.get("categories")),
                 "Title": str(article.get("title") or ""),
                 "Article URL": str(article.get("url") or ""),
             }

@@ -154,7 +154,7 @@ def show_overview_page() -> None:
         )
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
         st.markdown(
-            "<div class='subtle' style='color:#111111;font-size:1.14rem;line-height:1.65;'>Use <strong>Analysis</strong> to compare alternative news media landscapes "
+            "<div class='subtle' style='color:#111111;font-size:1.14rem;line-height:1.65;'>Use <strong>Overview</strong> to compare alternative news media landscapes "
             "across the Nordic region or examine publication patterns, outlet structure, and topics within individual countries. Open the "
             "<strong>Browse Media</strong> archive for outlet-level browsing, or <strong>Request Access</strong> for current and historical datasets.</div>",
             unsafe_allow_html=True,

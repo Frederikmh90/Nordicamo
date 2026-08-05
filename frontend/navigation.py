@@ -1,8 +1,8 @@
 """Navigation labels and route keys for the Streamlit shell."""
 
 TOPBAR_NAV_ITEMS = [
-    ("Platform", "Nordicamo"),
-    ("Analysis", "Explorer"),
+    ("Overview", "Explorer"),
+    ("Research Workshop", "Workshop"),
     ("Browse Media", "Media"),
     ("About", "About"),
     ("Request Access", "GetAccess"),
@@ -14,6 +14,7 @@ LEGACY_PAGE_ALIASES = {
     "Platform": "Nordicamo",
     "Countries": "Explorer",
     "Analysis": "Explorer",
+    "Overview": "Explorer",
     "Browse Media": "Media",
     "About": "About",
     "Request Access": "GetAccess",

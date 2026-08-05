@@ -35,6 +35,19 @@ class TestWorkshopHelpers(unittest.TestCase):
         articles = [{"title": str(index)} for index in range(120)]
         self.assertEqual(len(preview_records(articles)), 100)
 
+    def test_preview_records_formats_missing_and_legacy_category_values(self):
+        from workshop_helpers import preview_records
+
+        rows = preview_records(
+            [
+                {"categories": None},
+                {"categories": '["[Crime & justice]"]'},
+            ]
+        )
+
+        self.assertEqual(rows[0]["Categories"], "Not yet categorized")
+        self.assertEqual(rows[1]["Categories"], "Crime & Justice")
+
     def test_access_context_captures_selection_and_requested_rows(self):
         from workshop_helpers import build_access_request_context, project_by_key
 

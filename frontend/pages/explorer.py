@@ -1368,21 +1368,11 @@ def show_explorer_page() -> None:
     analysis_bundle = fetch_analysis_bundle() or {}
     overview = analysis_bundle.get("overview") or fetch_overview()
 
-    heading_col, workshop_col = st.columns([4, 1])
-    with heading_col:
-        st.markdown('<h1 class="main-header">Analysis</h1>', unsafe_allow_html=True)
-        st.markdown(
-            "<div class='subtle' style='font-size:1.05rem;'>Explore alternative news media landscapes across the Nordic region or focus on one country as a primary analytical workspace.</div>",
-            unsafe_allow_html=True,
-        )
-    with workshop_col:
-        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        if st.button("Research Workshop", use_container_width=True):
-            try:
-                st.query_params["page"] = "Workshop"
-            except Exception:
-                st.experimental_set_query_params(page="Workshop")
-            st.rerun()
+    st.markdown('<h1 class="main-header">Overview</h1>', unsafe_allow_html=True)
+    st.markdown(
+        "<div class='subtle' style='font-size:1.05rem;'>Explore alternative news media landscapes across the Nordic region or focus on one country as a primary analytical workspace.</div>",
+        unsafe_allow_html=True,
+    )
 
     mode, selected_country = _render_country_view_selector()
     st.session_state["explorer_mode"] = mode
