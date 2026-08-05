@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from contact import build_access_mailto
 from pages.footer import render_footer_bar
 
 ACCESS_FEEDBACK_TEXT = (
@@ -18,6 +19,20 @@ def show_get_access_page() -> None:
         "Please describe your purpose, the countries/outlets/time period you need, and the variables or article fields you expect to use.</div>",
         unsafe_allow_html=True,
     )
+    request_context = st.session_state.get("access_request_context")
+    if request_context:
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='access-checklist'><strong>Prepared workshop request</strong><br/>"
+            "This selection is ready to include in an access request.</div>",
+            unsafe_allow_html=True,
+        )
+        st.code(request_context, language=None)
+        mailto = build_access_mailto("", "", request_context)
+        st.link_button("Open a prepared email request", mailto)
+        if st.button("Clear prepared selection"):
+            st.session_state.pop("access_request_context", None)
+            st.rerun()
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     st.markdown(
         """

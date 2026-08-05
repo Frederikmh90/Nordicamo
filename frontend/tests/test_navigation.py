@@ -21,11 +21,12 @@ class TestNavigation(unittest.TestCase):
         )
 
     def test_legacy_page_aliases_include_old_access_label(self):
-        from navigation import LEGACY_PAGE_ALIASES
+        from navigation import ALLOWED_PAGES, LEGACY_PAGE_ALIASES
 
         self.assertEqual(LEGACY_PAGE_ALIASES["Full Data Access"], "GetAccess")
         self.assertEqual(LEGACY_PAGE_ALIASES["Countries"], "Explorer")
         self.assertEqual(LEGACY_PAGE_ALIASES["Analysis"], "Explorer")
+        self.assertIn("Workshop", ALLOWED_PAGES)
 
     def test_platform_and_countries_share_dark_blue_nav_color(self):
         from pathlib import Path

@@ -1339,6 +1339,19 @@ def show_explorer_page() -> None:
         "or switch to a country deep dive to inspect outlet-level activity, structure, and topics over time.</div>",
         unsafe_allow_html=True,
     )
+    workshop_col, workshop_copy = st.columns([1, 3])
+    with workshop_col:
+        if st.button("Open Research Workshop", type="primary", use_container_width=True):
+            try:
+                st.query_params["page"] = "Workshop"
+            except Exception:
+                st.experimental_set_query_params(page="Workshop")
+            st.rerun()
+    with workshop_copy:
+        st.markdown(
+            "<div class='subtle' style='padding-top:8px;'>Guided projects for comparative research, reporting cases, and bounded dataset previews.</div>",
+            unsafe_allow_html=True,
+        )
 
     mode, selected_country = _render_country_view_selector()
     st.session_state["explorer_mode"] = mode

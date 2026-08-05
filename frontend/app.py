@@ -23,6 +23,7 @@ from pages.explorer import show_explorer_page
 from pages.get_access import show_get_access_page
 from pages.media import show_media_page
 from pages.overview import show_overview_page
+from pages.workshop import show_workshop_page
 
 # Page config
 WEBSITE_ICON_PATH = Path(__file__).resolve().parent.parent / "graphics" / "website_icon_2.png"
@@ -168,6 +169,66 @@ st.markdown("""
     .subtle {
         color: var(--color-text-muted);
         font-size: 0.95rem;
+    }
+
+    .workshop-card {
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        background: var(--color-card);
+        min-height: 154px;
+        padding: var(--space-4);
+        margin-bottom: var(--space-2);
+    }
+    .workshop-card-active {
+        border-color: var(--color-accent-strong);
+        box-shadow: inset 3px 0 0 var(--color-accent-strong);
+    }
+    .workshop-card-title {
+        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--color-text);
+        margin-bottom: var(--space-2);
+    }
+    .workshop-card-question {
+        font-size: 0.93rem;
+        font-weight: 600;
+        color: var(--color-accent-strong);
+        margin-bottom: var(--space-2);
+    }
+    .workshop-card-body {
+        color: var(--color-text-muted);
+        font-size: 0.88rem;
+        line-height: 1.45;
+    }
+    .workshop-preview-table-wrap {
+        max-height: 520px;
+        overflow: auto;
+        border: 1px solid var(--color-border);
+        background: var(--color-card);
+    }
+    .workshop-preview-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+    .workshop-preview-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #edf3f7;
+        color: var(--color-text);
+        font-weight: 700;
+    }
+    .workshop-preview-table th,
+    .workshop-preview-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--color-border);
+        text-align: left;
+        vertical-align: top;
+    }
+    .workshop-preview-table td:nth-child(6) {
+        min-width: 260px;
     }
 
     .hero {
@@ -785,6 +846,8 @@ def main():
         show_overview_page()
     elif current_page == "Explorer":
         show_explorer_page()
+    elif current_page == "Workshop":
+        show_workshop_page()
     elif current_page == "Media":
         show_media_page()
     elif current_page == "About":

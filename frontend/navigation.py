@@ -8,7 +8,7 @@ TOPBAR_NAV_ITEMS = [
     ("Request Access", "GetAccess"),
 ]
 
-ALLOWED_PAGES = {"Nordicamo", "Explorer", "Media", "About", "GetAccess"}
+ALLOWED_PAGES = {"Nordicamo", "Explorer", "Workshop", "Media", "About", "GetAccess"}
 
 LEGACY_PAGE_ALIASES = {
     "Platform": "Nordicamo",
