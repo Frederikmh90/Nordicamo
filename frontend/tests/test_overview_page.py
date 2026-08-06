@@ -38,6 +38,14 @@ class TestOverviewPageHelpers(unittest.TestCase):
 
         self.assertIn("section-title landing-about-title", text)
 
+    def test_observatory_status_uses_the_current_observation_label(self):
+        from pathlib import Path
+
+        overview_source = Path(__file__).resolve().parents[1] / "pages" / "overview.py"
+        text = overview_source.read_text(encoding="utf-8")
+
+        self.assertIn("Observation active", text)
+
     def test_research_actions_use_the_expected_destinations(self):
         from pages.overview import _research_action_items
 

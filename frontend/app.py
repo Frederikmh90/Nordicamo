@@ -253,6 +253,14 @@ st.markdown("""
         padding: 4px 0 4px 18px;
         min-height: 100%;
     }
+    .observatory-status .chip {
+        font-size: 13px;
+        padding: 7px 11px;
+    }
+    .observatory-status .subtle {
+        font-size: 1.05rem;
+        line-height: 1.55;
+    }
     .landing-kpi {
         min-height: 82px;
         padding: 6px 4px 2px;
