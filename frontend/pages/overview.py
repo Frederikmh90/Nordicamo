@@ -80,6 +80,22 @@ def _observatory_scope_items() -> str:
     )
 
 
+def _exclude_incomplete_current_month(
+    frame: pd.DataFrame,
+    granularity: str,
+    today: pd.Timestamp | None = None,
+) -> tuple[pd.DataFrame, bool]:
+    """Hide the in-progress calendar month from monthly publication charts."""
+    if frame.empty or granularity.lower() != "month" or "date" not in frame.columns:
+        return frame, False
+
+    result = frame.copy()
+    result["date"] = pd.to_datetime(result["date"], errors="coerce")
+    current_month = (today or pd.Timestamp.today()).to_period("M")
+    incomplete_mask = result["date"].dt.to_period("M") == current_month
+    return result.loc[~incomplete_mask], bool(incomplete_mask.any())
+
+
 def show_overview_page() -> None:
     """Show overview dashboard page."""
     landing = fetch_landing_bundle() or {}
@@ -143,13 +159,13 @@ def show_overview_page() -> None:
     hero_left, hero_right = st.columns([2.3, 1.2])
     with hero_left:
         st.markdown(
-            "<div class='section-title'>Nordicamo</div>",
+            "<div class='section-title'>About the Observatory</div>",
             unsafe_allow_html=True,
         )
         st.markdown(
             "<div class='subtle' style='color:#111111;font-size:1.14rem;line-height:1.65;'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative research platform for studying "
             "alternative news media across the continental Nordic region (currently <strong>Denmark, Finland, Norway, and Sweden</strong>). "
-            "It combines an active observatory of publisher-operated websites with historical coverage for comparative research.</div>",
+            "It tracks articles from active alternative news media, connecting current observation with a growing historical archive.</div>",
             unsafe_allow_html=True,
         )
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
@@ -301,6 +317,7 @@ def show_overview_page() -> None:
 
     if not selected_country:
         fig = go.Figure()
+        incomplete_month_hidden = False
         countries = ["denmark", "sweden", "norway", "finland"]
         colors = {
             "denmark": "#C8102E",
@@ -333,6 +350,8 @@ def show_overview_page() -> None:
                 df_time = pd.DataFrame(time_data["data"])
                 df_time["date"] = pd.to_datetime(df_time["date"], errors="coerce")
                 df_time = df_time.sort_values("date")
+                df_time, hidden_for_country = _exclude_incomplete_current_month(df_time, granularity)
+                incomplete_month_hidden = incomplete_month_hidden or hidden_for_country
 
                 fig.add_trace(
                     go.Scatter(
@@ -364,6 +383,8 @@ def show_overview_page() -> None:
             margin=dict(b=50, t=40, l=50, r=50),
         )
         st.plotly_chart(fig, use_container_width=True)
+        if incomplete_month_hidden:
+            st.caption("The current calendar month is excluded because article collection is still in progress.")
     else:
         time_data = fetch_articles_over_time(
             country=selected_country,
@@ -377,6 +398,7 @@ def show_overview_page() -> None:
             df_time = pd.DataFrame(time_data["data"])
             df_time["date"] = pd.to_datetime(df_time["date"], errors="coerce")
             df_time = df_time.sort_values("date")
+            df_time, incomplete_month_hidden = _exclude_incomplete_current_month(df_time, granularity)
 
             fig = px.line(
                 df_time,
@@ -396,6 +418,8 @@ def show_overview_page() -> None:
                 hovermode="x unified",
             )
             st.plotly_chart(fig, use_container_width=True)
+            if incomplete_month_hidden:
+                st.caption("The current calendar month is excluded because article collection is still in progress.")
         else:
             st.info("No data available for selected filters.")
 

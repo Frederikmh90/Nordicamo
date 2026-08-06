@@ -2,6 +2,8 @@ import os
 import sys
 import unittest
 
+import pandas as pd
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
@@ -24,6 +26,37 @@ class TestOverviewPageHelpers(unittest.TestCase):
 
         self.assertIn("Research Workshop", text)
         self.assertIn("bounded metadata preview", text)
+
+    def test_monthly_chart_hides_only_current_calendar_month(self):
+        from pages.overview import _exclude_incomplete_current_month
+
+        frame = pd.DataFrame(
+            {
+                "date": ["2026-07-01", "2026-08-01", "2026-09-01"],
+                "count": [10, 2, 12],
+            }
+        )
+        filtered, hidden = _exclude_incomplete_current_month(
+            frame,
+            "Month",
+            today=pd.Timestamp("2026-08-06"),
+        )
+
+        self.assertTrue(hidden)
+        self.assertEqual(filtered["date"].dt.month.tolist(), [7, 9])
+
+    def test_non_monthly_chart_keeps_current_period(self):
+        from pages.overview import _exclude_incomplete_current_month
+
+        frame = pd.DataFrame({"date": ["2026-08-01"], "count": [2]})
+        filtered, hidden = _exclude_incomplete_current_month(
+            frame,
+            "Year",
+            today=pd.Timestamp("2026-08-06"),
+        )
+
+        self.assertFalse(hidden)
+        self.assertEqual(len(filtered), 1)
 
     def test_landing_page_does_not_render_data_trust_panel(self):
         from pathlib import Path
