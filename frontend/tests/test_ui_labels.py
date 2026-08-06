@@ -5,7 +5,7 @@ class TestUiLabels(unittest.TestCase):
     def test_avg_articles_per_outlet_label(self):
         from ui_labels import AVG_ARTICLES_PER_OUTLET_LABEL
 
-        self.assertEqual(AVG_ARTICLES_PER_OUTLET_LABEL, "Avg articles per Outlet")
+        self.assertEqual(AVG_ARTICLES_PER_OUTLET_LABEL, "Average articles per outlet")
 
 
 if __name__ == "__main__":

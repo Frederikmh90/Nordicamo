@@ -1,1 +1,1 @@
-AVG_ARTICLES_PER_OUTLET_LABEL = "Avg articles per Outlet"
+AVG_ARTICLES_PER_OUTLET_LABEL = "Average articles per outlet"
