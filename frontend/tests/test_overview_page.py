@@ -30,6 +30,15 @@ class TestOverviewPageHelpers(unittest.TestCase):
         self.assertIn("?page=Workshop", html)
         self.assertNotIn("research-action-number", html)
 
+    def test_landing_page_keeps_scope_and_kpis_separate_from_research_actions(self):
+        from pathlib import Path
+
+        overview_source = Path(__file__).resolve().parents[1] / "pages" / "overview.py"
+        text = overview_source.read_text(encoding="utf-8")
+
+        self.assertIn("def render_kpis()", text)
+        self.assertIn("class='observatory-scope-band'", text)
+
     def test_research_actions_use_the_expected_destinations(self):
         from pages.overview import _research_action_items
 

@@ -158,6 +158,45 @@ def show_overview_page() -> None:
             unsafe_allow_html=True,
         )
 
+    def render_kpis() -> None:
+        if not kpi_source:
+            return
+
+        k1, k2, k3, k4, k5 = st.columns(5)
+        with k1:
+            total_articles = kpi_source.get("total_articles", 0)
+            render_kpi("Total Articles", f"{total_articles:,}")
+        with k2:
+            total_outlets = kpi_source.get("total_outlets", 0)
+            render_kpi("Outlets", f"{total_outlets:,}")
+        with k3:
+            avg_per_outlet = kpi_source.get("avg_articles_per_outlet", 0)
+            render_kpi(AVG_ARTICLES_PER_OUTLET_LABEL, f"{avg_per_outlet:,.0f}")
+        with k4:
+            coverage_years = kpi_source.get("coverage_years")
+            if coverage_years:
+                try:
+                    start_year, end_year = coverage_years.split("-", 1)
+                    coverage_years = f"{max(int(start_year), 2006)}-{end_year}"
+                except ValueError:
+                    pass
+            else:
+                date_range = overview.get("date_range", {}) if overview else {}
+                earliest = date_range.get("earliest") or "N/A"
+                latest = date_range.get("latest") or "N/A"
+                try:
+                    coverage_years = f"{max(int(str(earliest)[:4]), 2006)}-{str(latest)[:4]}"
+                except (TypeError, ValueError):
+                    coverage_years = "N/A"
+            render_kpi("Coverage", str(coverage_years))
+        with k5:
+            growth_rate = kpi_source.get("growth_rate_per_year")
+            if growth_rate:
+                growth_display = f"+{growth_rate:,.0f}" if growth_rate > 0 else f"{growth_rate:,.0f}"
+                render_kpi("Growth Rate", growth_display, "articles/year")
+            else:
+                render_kpi("Countries", f"{len((overview or {}).get('by_country', {}))}")
+
     articles = _build_ticker_sample(landing.get("latest_articles", []) or [])
     if articles:
         ticker_items = []
@@ -189,6 +228,9 @@ def show_overview_page() -> None:
             unsafe_allow_html=True,
         )
 
+    render_kpis()
+    st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+
     hero_left, hero_right = st.columns([2.3, 1.2])
     with hero_left:
         st.markdown(
@@ -217,14 +259,20 @@ def show_overview_page() -> None:
                 <aside class='observatory-status'>
                     <div class='chip'><span class='pulse'></span> Observation active</div>
                     {status_body}
-                    <div class='observatory-status-scope'>
-                        <div class='signal-panel-title'>Observatory scope</div>
-                        {_observatory_scope_items()}
-                    </div>
                 </aside>
             """,
             unsafe_allow_html=True,
         )
+
+    st.markdown(
+        f"""
+        <section class='observatory-scope-band' aria-label='Observatory scope'>
+            <div class='signal-panel-title'>Observatory scope</div>
+            <div class='observatory-scope-grid'>{_observatory_scope_items()}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         f"""
@@ -239,48 +287,6 @@ def show_overview_page() -> None:
     )
 
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-
-    if kpi_source:
-        k1, k2, k3, k4, k5 = st.columns(5)
-        with k1:
-            total_articles = kpi_source.get("total_articles", 0)
-            render_kpi("Total Articles", f"{total_articles:,}")
-        with k2:
-            total_outlets = kpi_source.get("total_outlets", 0)
-            render_kpi("Outlets", f"{total_outlets:,}")
-        with k3:
-            avg_per_outlet = kpi_source.get("avg_articles_per_outlet", 0) if kpi_source else 0
-            render_kpi(AVG_ARTICLES_PER_OUTLET_LABEL, f"{avg_per_outlet:,.0f}")
-        with k4:
-            coverage_years = kpi_source.get("coverage_years") if kpi_source else None
-            if coverage_years:
-                try:
-                    start_year, end_year = coverage_years.split("-", 1)
-                    start_year = max(int(start_year), 2006)
-                    coverage_years = f"{start_year}-{end_year}"
-                except Exception:
-                    pass
-            else:
-                dr = overview.get("date_range", {}) if overview else {}
-                earliest = dr.get("earliest") or "N/A"
-                latest = dr.get("latest") or "N/A"
-                if earliest != "N/A" and latest != "N/A":
-                    try:
-                        start_year = max(int(str(earliest)[:4]), 2006)
-                        end_year = str(latest)[:4]
-                        coverage_years = f"{start_year}-{end_year}"
-                    except Exception:
-                        coverage_years = "N/A"
-                else:
-                    coverage_years = "N/A"
-            render_kpi("Coverage", f"{coverage_years}")
-        with k5:
-            growth_rate = kpi_source.get("growth_rate_per_year") if kpi_source else None
-            if growth_rate:
-                growth_display = f"+{growth_rate:,.0f}" if growth_rate > 0 else f"{growth_rate:,.0f}"
-                render_kpi("Growth Rate", growth_display, "articles/year")
-            else:
-                render_kpi("Countries", f"{len((overview or {}).get('by_country', {}))}")
 
     if not overview:
         st.error("Unable to load data. Please check API connection.")

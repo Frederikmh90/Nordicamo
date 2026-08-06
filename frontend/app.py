@@ -246,6 +246,29 @@ st.markdown("""
         padding: 4px 0 4px 18px;
         min-height: 100%;
     }
+    .observatory-scope-band {
+        border-top: 1px solid var(--color-border);
+        border-bottom: 1px solid var(--color-border);
+        margin: 24px 0 0;
+        padding: 16px 0 18px;
+    }
+    .observatory-scope-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .observatory-scope-band .signal-item {
+        border-top: 0;
+        border-left: 1px solid var(--color-border);
+        margin: 0;
+        padding: 2px 22px 2px;
+    }
+    .observatory-scope-band .signal-item:first-child {
+        border-left: 0;
+        padding-left: 0;
+    }
+    .observatory-scope-band .signal-meta {
+        font-weight: 600;
+    }
     .observatory-status-scope {
         border-top: 1px solid var(--color-border);
         margin-top: 16px;
@@ -839,6 +862,20 @@ st.markdown("""
         }
         .research-actions-grid {
             grid-template-columns: 1fr;
+        }
+        .observatory-scope-grid {
+            grid-template-columns: 1fr;
+        }
+        .observatory-scope-band .signal-item,
+        .observatory-scope-band .signal-item:first-child {
+            border-left: 0;
+            border-top: 1px solid var(--color-border);
+            margin: 0;
+            padding: 14px 0;
+        }
+        .observatory-scope-band .signal-item:first-child {
+            border-top: 0;
+            padding-top: 2px;
         }
         .research-action,
         .research-action:first-child {
