@@ -147,16 +147,17 @@ def show_overview_page() -> None:
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div class='subtle' style='color:#111111;font-size:1.14rem;line-height:1.65;'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative platform for studying "
+            "<div class='subtle' style='color:#111111;font-size:1.14rem;line-height:1.65;'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative research platform for studying "
             "alternative news media across the continental Nordic region (currently <strong>Denmark, Finland, Norway, and Sweden</strong>). "
-            "It tracks publisher-operated websites as an active observatory while preserving historical coverage for comparative research.</div>",
+            "It combines an active observatory of publisher-operated websites with historical coverage for comparative research.</div>",
             unsafe_allow_html=True,
         )
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
         st.markdown(
             "<div class='subtle' style='color:#111111;font-size:1.14rem;line-height:1.65;'>Use <strong>Overview</strong> to compare alternative news media landscapes "
-            "across the Nordic region or examine publication patterns, outlet structure, and topics within individual countries. Open the "
-            "<strong>Browse Media</strong> archive for outlet-level browsing, or <strong>Request Access</strong> for current and historical datasets.</div>",
+            "across the Nordic region or examine publication patterns, outlet structure, and topics within individual countries. Start in the "
+            "<strong>Research Workshop</strong> with a concrete question, inspect a bounded metadata preview, and prepare a documented dataset request. "
+            "Browse the <strong>Browse Media</strong> archive for outlet-level research, or <strong>Request Access</strong> for current and historical datasets.</div>",
             unsafe_allow_html=True,
         )
     with hero_right:

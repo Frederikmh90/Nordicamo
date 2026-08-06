@@ -16,6 +16,15 @@ class TestOverviewPageHelpers(unittest.TestCase):
         self.assertIn("Comparative analysis", html)
         self.assertIn("Research archive", html)
 
+    def test_landing_page_introduces_research_workshop(self):
+        from pathlib import Path
+
+        overview_source = Path(__file__).resolve().parents[1] / "pages" / "overview.py"
+        text = overview_source.read_text(encoding="utf-8")
+
+        self.assertIn("Research Workshop", text)
+        self.assertIn("bounded metadata preview", text)
+
     def test_landing_page_does_not_render_data_trust_panel(self):
         from pathlib import Path
 
