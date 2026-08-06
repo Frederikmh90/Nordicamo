@@ -167,7 +167,8 @@ st.markdown("""
     }
     .landing-about-title {
         color: var(--color-logo);
-        font-size: 15px;
+        font-size: 20px;
+        font-weight: 700;
         letter-spacing: 0.08em;
         text-transform: uppercase;
     }
@@ -463,17 +464,17 @@ st.markdown("""
     .nav-link.cta {
         background: #173f5f;
         border: 1px solid #173f5f;
-        color: #ffffff;
+        color: #ffffff !important;
         box-shadow: 0 6px 14px rgba(23, 63, 95, 0.18);
     }
     .nav-link.cta:hover {
         background: #0f314d;
-        color: #ffffff;
+        color: #ffffff !important;
     }
     .nav-link.active.cta {
         background: #0f314d;
         border-color: #0f314d;
-        color: #ffffff;
+        color: #ffffff !important;
         box-shadow: 0 8px 18px rgba(23, 63, 95, 0.22);
     }
 

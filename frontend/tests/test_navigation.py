@@ -37,6 +37,8 @@ class TestNavigation(unittest.TestCase):
 
         self.assertIn(".nav-link {", text)
         self.assertIn("color: #0f3855 !important;", text)
+        self.assertIn(".nav-link.cta", text)
+        self.assertIn("color: #ffffff !important;", text)
 
 
 if __name__ == "__main__":
