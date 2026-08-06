@@ -18,14 +18,25 @@ class TestOverviewPageHelpers(unittest.TestCase):
         self.assertIn("Comparative analysis", html)
         self.assertIn("Research archive", html)
 
-    def test_landing_page_introduces_research_workshop(self):
-        from pathlib import Path
+    def test_landing_page_has_three_research_actions(self):
+        from pages.overview import _research_action_items
 
-        overview_source = Path(__file__).resolve().parents[1] / "pages" / "overview.py"
-        text = overview_source.read_text(encoding="utf-8")
+        html = _research_action_items()
 
-        self.assertIn("Research Workshop", text)
-        self.assertIn("bounded metadata preview", text)
+        self.assertIn("Compare", html)
+        self.assertIn("Investigate", html)
+        self.assertIn("Build a research case", html)
+        self.assertIn("Start with a question", html)
+        self.assertIn("?page=Workshop", html)
+
+    def test_research_actions_use_the_expected_destinations(self):
+        from pages.overview import _research_action_items
+
+        html = _research_action_items()
+
+        self.assertIn("?page=Explorer", html)
+        self.assertIn("?page=Media", html)
+        self.assertIn("?page=Workshop", html)
 
     def test_monthly_chart_hides_only_current_calendar_month(self):
         from pages.overview import _exclude_incomplete_current_month

@@ -50,7 +50,7 @@ def _set_page(page: str) -> None:
 
 
 def _render_project_selector(selected_key: str) -> str:
-    st.markdown("<div class='section-title'>Choose a research workshop</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Choose a question to investigate</div>", unsafe_allow_html=True)
     cols = st.columns(2)
     for index, project in enumerate(WORKSHOP_PROJECTS):
         with cols[index % 2]:

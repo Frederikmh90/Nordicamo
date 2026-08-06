@@ -172,16 +172,16 @@ st.markdown("""
     }
 
     .workshop-card {
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius);
-        background: var(--color-card);
+        border: 0;
+        border-left: 2px solid var(--color-border);
+        border-radius: 0;
+        background: transparent;
         min-height: 154px;
-        padding: var(--space-4);
+        padding: 4px 0 4px var(--space-4);
         margin-bottom: var(--space-2);
     }
     .workshop-card-active {
         border-color: var(--color-accent-strong);
-        box-shadow: inset 3px 0 0 var(--color-accent-strong);
     }
     .workshop-card-title {
         font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
@@ -241,19 +241,15 @@ st.markdown("""
     .hero-right {
         text-align: left;
     }
-    .status-card {
-        background: rgba(255, 255, 255, 0.85);
-        border: 1px solid var(--color-border);
-        border-radius: 12px;
-        padding: 14px 16px;
-        box-shadow: var(--shadow-soft);
+    .observatory-status {
+        border-left: 2px solid var(--color-logo);
+        padding: 4px 0 4px 18px;
+        min-height: 100%;
     }
-    .signal-panel {
-        border: 1px solid var(--color-border);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.82);
-        padding: 14px 16px;
-        box-shadow: var(--shadow-soft);
+    .observatory-status-scope {
+        border-top: 1px solid var(--color-border);
+        margin-top: 16px;
+        padding-top: 14px;
     }
     .signal-panel-title {
         font-size: 12px;
@@ -280,6 +276,76 @@ st.markdown("""
         color: var(--color-text-muted);
         font-size: 12px;
         margin-bottom: 2px;
+    }
+    .research-actions {
+        border-top: 1px solid var(--color-border);
+        border-bottom: 1px solid var(--color-border);
+        margin: 28px 0 20px;
+        padding: 18px 0 20px;
+    }
+    .research-actions-intro {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    .research-actions-kicker {
+        color: var(--color-logo);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+    .research-actions-heading {
+        color: var(--color-text);
+        font-size: 1.05rem;
+        font-weight: 700;
+    }
+    .research-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .research-action {
+        display: block;
+        min-height: 185px;
+        padding: 4px 22px 6px;
+        border-left: 1px solid var(--color-border);
+        color: var(--color-text) !important;
+        text-decoration: none !important;
+    }
+    .research-action:first-child {
+        border-left: 0;
+        padding-left: 0;
+    }
+    .research-action-number {
+        color: var(--color-text-muted);
+        font-family: "Inter", sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+    .research-action-title {
+        color: var(--color-logo);
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+    .research-action-body {
+        color: var(--color-text-muted);
+        font-size: 0.92rem;
+        line-height: 1.5;
+        max-width: 31rem;
+    }
+    .research-action-link {
+        color: var(--color-logo);
+        font-size: 0.86rem;
+        font-weight: 700;
+        margin-top: 13px;
+    }
+    .research-action:hover .research-action-title,
+    .research-action:hover .research-action-link {
+        color: var(--color-accent);
     }
     .overview-actions {
         display: flex;
@@ -777,6 +843,29 @@ st.markdown("""
     }
     .footer-bar a:hover {
         text-decoration: underline;
+    }
+
+    @media (max-width: 720px) {
+        .research-actions-intro {
+            display: block;
+        }
+        .research-actions-heading {
+            margin-top: 6px;
+        }
+        .research-actions-grid {
+            grid-template-columns: 1fr;
+        }
+        .research-action,
+        .research-action:first-child {
+            min-height: 0;
+            padding: 16px 0;
+            border-left: 0;
+            border-top: 1px solid var(--color-border);
+        }
+        .research-action:first-child {
+            border-top: 0;
+            padding-top: 4px;
+        }
     }
 
     /* Code blocks */
