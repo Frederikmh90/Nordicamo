@@ -46,6 +46,15 @@ class TestOverviewPageHelpers(unittest.TestCase):
 
         self.assertIn("Observation active", text)
 
+    def test_landing_kpi_labels_use_sentence_case(self):
+        from pathlib import Path
+
+        overview_source = Path(__file__).resolve().parents[1] / "pages" / "overview.py"
+        text = overview_source.read_text(encoding="utf-8")
+
+        self.assertIn('render_kpi("Total articles"', text)
+        self.assertIn('render_kpi("Growth rate"', text)
+
     def test_research_actions_use_the_expected_destinations(self):
         from pages.overview import _research_action_items
 

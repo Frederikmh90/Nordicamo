@@ -145,7 +145,7 @@ def show_overview_page() -> None:
         k1, k2, k3, k4, k5 = st.columns(5)
         with k1:
             total_articles = kpi_source.get("total_articles", 0)
-            render_kpi("Total Articles", f"{total_articles:,}")
+            render_kpi("Total articles", f"{total_articles:,}")
         with k2:
             total_outlets = kpi_source.get("total_outlets", 0)
             render_kpi("Outlets", f"{total_outlets:,}")
@@ -173,7 +173,7 @@ def show_overview_page() -> None:
             growth_rate = kpi_source.get("growth_rate_per_year")
             if growth_rate:
                 growth_display = f"+{growth_rate:,.0f}" if growth_rate > 0 else f"{growth_rate:,.0f}"
-                render_kpi("Growth Rate", growth_display, "articles/year")
+                render_kpi("Growth rate", growth_display, "articles/year")
             else:
                 render_kpi("Countries", f"{len((overview or {}).get('by_country', {}))}")
 
