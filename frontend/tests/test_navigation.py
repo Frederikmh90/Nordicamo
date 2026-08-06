@@ -29,15 +29,14 @@ class TestNavigation(unittest.TestCase):
         self.assertEqual(LEGACY_PAGE_ALIASES["Overview"], "Explorer")
         self.assertIn("Workshop", ALLOWED_PAGES)
 
-    def test_platform_and_countries_share_dark_blue_nav_color(self):
+    def test_standard_navigation_uses_the_browse_media_blue(self):
         from pathlib import Path
 
         app_source = Path(__file__).resolve().parents[1] / "app.py"
         text = app_source.read_text(encoding="utf-8")
 
         self.assertIn(".nav-link {", text)
-        self.assertIn("color: #0f3855;", text)
-        self.assertNotIn("color: #1b3a53;", text)
+        self.assertIn("color: #0054a3 !important;", text)
 
 
 if __name__ == "__main__":
