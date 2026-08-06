@@ -65,21 +65,6 @@ def _build_ticker_sample(articles: list[dict]) -> list[dict]:
     return sample
 
 
-def _observatory_scope_items() -> str:
-    items = [
-        ("Active observation", "Recurring collection from publisher-operated outlet websites."),
-        ("Comparative analysis", "Country-level views of publication patterns, outlets, and topics."),
-        ("Research archive", "Historical coverage for case selection and longitudinal work."),
-    ]
-    return "".join(
-        "<div class='signal-item'>"
-        f"<div class='signal-meta'>{html.escape(title)}</div>"
-        f"<div>{html.escape(body)}</div>"
-        "</div>"
-        for title, body in items
-    )
-
-
 def _research_action_items() -> str:
     """Render the three primary ways researchers can enter the observatory."""
     actions = [
@@ -144,14 +129,9 @@ def show_overview_page() -> None:
         )
         st.markdown(
             f"""
-            <div style="
-                padding: 4px 2px;
-                display:flex;
-                flex-direction:column;
-                gap:6px;
-            ">
-                <div style="font-size:13px; color: var(--color-text-muted);">{label}</div>
-                <div style="font-size:28px; color: var(--color-text); font-weight:600; line-height:1;">{value}</div>
+            <div class="landing-kpi">
+                <div class="landing-kpi-label">{label}</div>
+                <div class="landing-kpi-value">{value}</div>
                 {subtitle_html}
             </div>
             """,
@@ -229,7 +209,7 @@ def show_overview_page() -> None:
         )
 
     render_kpis()
-    st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='landing-kpi-divider'></div>", unsafe_allow_html=True)
 
     hero_left, hero_right = st.columns([2.3, 1.2])
     with hero_left:
@@ -263,16 +243,6 @@ def show_overview_page() -> None:
             """,
             unsafe_allow_html=True,
         )
-
-    st.markdown(
-        f"""
-        <section class='observatory-scope-band' aria-label='Observatory scope'>
-            <div class='signal-panel-title'>Observatory scope</div>
-            <div class='observatory-scope-grid'>{_observatory_scope_items()}</div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
 
     st.markdown(
         f"""

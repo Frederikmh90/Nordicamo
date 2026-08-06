@@ -246,59 +246,28 @@ st.markdown("""
         padding: 4px 0 4px 18px;
         min-height: 100%;
     }
-    .observatory-scope-band {
-        border-top: 1px solid var(--color-border);
-        border-bottom: 1px solid var(--color-border);
-        margin: 24px 0 0;
-        padding: 16px 0 18px;
+    .landing-kpi {
+        min-height: 82px;
+        padding: 6px 4px 2px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
     }
-    .observatory-scope-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-    .observatory-scope-band .signal-item {
-        border-top: 0;
-        border-left: 1px solid var(--color-border);
-        margin: 0;
-        padding: 2px 22px 2px;
-    }
-    .observatory-scope-band .signal-item:first-child {
-        border-left: 0;
-        padding-left: 0;
-    }
-    .observatory-scope-band .signal-meta {
-        font-weight: 600;
-    }
-    .observatory-status-scope {
-        border-top: 1px solid var(--color-border);
-        margin-top: 16px;
-        padding-top: 14px;
-    }
-    .signal-panel-title {
-        font-size: 15px;
-        font-weight: 800;
-        color: var(--color-logo);
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin-bottom: 10px;
-    }
-    .signal-item {
-        border-top: 1px solid var(--color-border);
-        padding: 8px 0 0;
-        margin-top: 8px;
-        font-size: 15px;
-        color: var(--color-text);
-        line-height: 1.45;
-    }
-    .signal-item:first-of-type {
-        border-top: 0;
-        padding-top: 0;
-        margin-top: 0;
-    }
-    .signal-meta {
+    .landing-kpi-label {
         color: var(--color-text-muted);
         font-size: 14px;
-        margin-bottom: 3px;
+    }
+    .landing-kpi-value {
+        color: var(--color-text);
+        font-size: 30px;
+        font-weight: 600;
+        line-height: 1.05;
+    }
+    .landing-kpi-divider {
+        height: 2px;
+        margin: 20px 0 26px;
+        background: var(--color-logo);
     }
     .research-actions {
         border-top: 1px solid var(--color-border);
@@ -862,20 +831,6 @@ st.markdown("""
         }
         .research-actions-grid {
             grid-template-columns: 1fr;
-        }
-        .observatory-scope-grid {
-            grid-template-columns: 1fr;
-        }
-        .observatory-scope-band .signal-item,
-        .observatory-scope-band .signal-item:first-child {
-            border-left: 0;
-            border-top: 1px solid var(--color-border);
-            margin: 0;
-            padding: 14px 0;
-        }
-        .observatory-scope-band .signal-item:first-child {
-            border-top: 0;
-            padding-top: 2px;
         }
         .research-action,
         .research-action:first-child {

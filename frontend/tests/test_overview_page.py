@@ -8,16 +8,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 
 class TestOverviewPageHelpers(unittest.TestCase):
-    def test_observatory_scope_items_render_expected_sections(self):
-        from pages.overview import _observatory_scope_items
-
-        html = _observatory_scope_items()
-
-        self.assertIn("Active observation", html)
-        self.assertNotIn("Active monitoring", html)
-        self.assertIn("Comparative analysis", html)
-        self.assertIn("Research archive", html)
-
     def test_landing_page_has_three_research_actions(self):
         from pages.overview import _research_action_items
 
@@ -30,14 +20,15 @@ class TestOverviewPageHelpers(unittest.TestCase):
         self.assertIn("?page=Workshop", html)
         self.assertNotIn("research-action-number", html)
 
-    def test_landing_page_keeps_scope_and_kpis_separate_from_research_actions(self):
+    def test_landing_page_places_kpis_before_research_actions(self):
         from pathlib import Path
 
         overview_source = Path(__file__).resolve().parents[1] / "pages" / "overview.py"
         text = overview_source.read_text(encoding="utf-8")
 
         self.assertIn("def render_kpis()", text)
-        self.assertIn("class='observatory-scope-band'", text)
+        self.assertLess(text.index("render_kpis()"), text.index("research-actions"))
+        self.assertNotIn("Observatory scope", text)
 
     def test_research_actions_use_the_expected_destinations(self):
         from pages.overview import _research_action_items
