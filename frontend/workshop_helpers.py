@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 
 
 MAX_BROWSER_PREVIEW_ROWS = 100
-REQUEST_ROW_OPTIONS = (100, 500, 1000)
 CATEGORY_LABELS = (
     "Politics & Governance",
     "Immigration & National Identity",
@@ -127,7 +126,6 @@ def build_access_request_context(
     outlets: list[str] | None = None,
     categories: list[str] | None = None,
     keyword: str | None = None,
-    requested_rows: int = 100,
 ) -> str:
     """Create a concise, reproducible description for an access request."""
     country_label = ", ".join(country.capitalize() for country in countries if country) or "Not specified"
@@ -146,7 +144,6 @@ def build_access_request_context(
     lines.extend(
         [
             "Purpose and affiliation: [Please add before sending]",
-            f"Requested sample size: up to {requested_rows:,} rows",
             "Requested fields: article ID, date, country, outlet, orientation, categories, title, and URL.",
         ]
     )

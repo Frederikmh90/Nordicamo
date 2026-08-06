@@ -21,17 +21,24 @@ def show_get_access_page() -> None:
     )
     request_context = st.session_state.get("access_request_context")
     if request_context:
+        if "access_request_draft" not in st.session_state:
+            st.session_state["access_request_draft"] = request_context
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         st.markdown(
             "<div class='access-checklist'><strong>Prepared workshop request</strong><br/>"
-            "This selection is ready to include in an access request.</div>",
+            "Review and edit this text before opening the prepared email.</div>",
             unsafe_allow_html=True,
         )
-        st.code(request_context, language=None)
-        mailto = build_access_mailto("", "", request_context)
+        request_draft = st.text_area(
+            "Prepared workshop request",
+            key="access_request_draft",
+            height=250,
+        )
+        mailto = build_access_mailto("", "", request_draft)
         st.link_button("Open a prepared email request", mailto)
         if st.button("Clear prepared selection"):
             st.session_state.pop("access_request_context", None)
+            st.session_state.pop("access_request_draft", None)
             st.rerun()
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     st.markdown(

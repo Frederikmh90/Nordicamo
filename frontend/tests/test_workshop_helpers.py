@@ -48,7 +48,7 @@ class TestWorkshopHelpers(unittest.TestCase):
         self.assertEqual(rows[0]["Categories"], "Not yet categorized")
         self.assertEqual(rows[1]["Categories"], "Crime & Justice")
 
-    def test_access_context_captures_selection_and_requested_rows(self):
+    def test_access_context_captures_selection_without_row_request(self):
         from workshop_helpers import build_access_request_context, project_by_key
 
         context = build_access_request_context(
@@ -59,14 +59,13 @@ class TestWorkshopHelpers(unittest.TestCase):
             outlets=["example.dk"],
             categories=["Politics"],
             keyword="migration",
-            requested_rows=500,
         )
 
         self.assertIn("Build a reporting case", context)
         self.assertIn("Denmark", context)
         self.assertIn("example.dk", context)
         self.assertIn("migration", context)
-        self.assertIn("500 rows", context)
+        self.assertNotIn("Requested sample size", context)
         self.assertIn("Purpose and affiliation", context)
 
     def test_safe_article_url_allows_only_http_urls(self):

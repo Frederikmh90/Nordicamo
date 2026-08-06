@@ -24,6 +24,15 @@ class TestGetAccessPageCopy(unittest.TestCase):
         self.assertIn("Frederik Henriksen", text)
         self.assertIn("postdoc in the AlterPublics research project", text)
 
+    def test_workshop_request_is_editable_before_email_handoff(self):
+        from pathlib import Path
+
+        source = (Path(__file__).resolve().parents[1] / "pages" / "get_access.py").read_text(encoding="utf-8")
+
+        self.assertIn("st.text_area(", source)
+        self.assertIn('key="access_request_draft"', source)
+        self.assertNotIn("st.code(request_context", source)
+
 
 if __name__ == "__main__":
     unittest.main()

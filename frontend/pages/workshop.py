@@ -19,7 +19,6 @@ from services.api import (
 )
 from workshop_helpers import (
     MAX_BROWSER_PREVIEW_ROWS,
-    REQUEST_ROW_OPTIONS,
     WORKSHOP_PROJECTS,
     build_access_request_context,
     preview_records,
@@ -161,14 +160,8 @@ def _render_method_note(project, countries, date_from, date_to, outlets, categor
 
 
 def _request_selection(project, countries, date_from, date_to, outlets, categories, keyword) -> None:
-    requested_rows = st.select_slider(
-        "Rows to request",
-        options=list(REQUEST_ROW_OPTIONS),
-        value=100,
-        help="This only prepares an access request. It does not download data.",
-    )
-    if st.button("Request this selection", type="primary"):
-        st.session_state["access_request_context"] = build_access_request_context(
+    if st.button("Prepare workshop request", type="primary"):
+        request_context = build_access_request_context(
             project=project,
             countries=countries,
             date_from=date_from,
@@ -176,8 +169,9 @@ def _request_selection(project, countries, date_from, date_to, outlets, categori
             outlets=outlets,
             categories=categories,
             keyword=keyword,
-            requested_rows=requested_rows,
         )
+        st.session_state["access_request_context"] = request_context
+        st.session_state["access_request_draft"] = request_context
         _set_page("GetAccess")
 
 
