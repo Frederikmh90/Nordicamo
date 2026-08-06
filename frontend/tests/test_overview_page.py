@@ -28,6 +28,7 @@ class TestOverviewPageHelpers(unittest.TestCase):
         self.assertIn("Build a research case", html)
         self.assertIn("Start with a question", html)
         self.assertIn("?page=Workshop", html)
+        self.assertNotIn("research-action-number", html)
 
     def test_research_actions_use_the_expected_destinations(self):
         from pages.overview import _research_action_items

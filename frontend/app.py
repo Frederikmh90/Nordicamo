@@ -252,20 +252,20 @@ st.markdown("""
         padding-top: 14px;
     }
     .signal-panel-title {
-        font-size: 12px;
+        font-size: 15px;
         font-weight: 800;
         color: var(--color-logo);
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
     }
     .signal-item {
         border-top: 1px solid var(--color-border);
         padding: 8px 0 0;
         margin-top: 8px;
-        font-size: 13px;
+        font-size: 15px;
         color: var(--color-text);
-        line-height: 1.35;
+        line-height: 1.45;
     }
     .signal-item:first-of-type {
         border-top: 0;
@@ -274,8 +274,8 @@ st.markdown("""
     }
     .signal-meta {
         color: var(--color-text-muted);
-        font-size: 12px;
-        margin-bottom: 2px;
+        font-size: 14px;
+        margin-bottom: 3px;
     }
     .research-actions {
         border-top: 1px solid var(--color-border);
@@ -292,15 +292,10 @@ st.markdown("""
     }
     .research-actions-kicker {
         color: var(--color-logo);
-        font-size: 12px;
+        font-size: 15px;
         font-weight: 800;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-    }
-    .research-actions-heading {
-        color: var(--color-text);
-        font-size: 1.05rem;
-        font-weight: 700;
     }
     .research-actions-grid {
         display: grid;
@@ -318,18 +313,11 @@ st.markdown("""
         border-left: 0;
         padding-left: 0;
     }
-    .research-action-number {
-        color: var(--color-text-muted);
-        font-family: "Inter", sans-serif;
-        font-size: 12px;
-        font-weight: 600;
-        margin-bottom: 10px;
-    }
     .research-action-title {
         color: var(--color-logo);
         font-size: 1.2rem;
         font-weight: 700;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
     }
     .research-action-body {
         color: var(--color-text-muted);
@@ -848,9 +836,6 @@ st.markdown("""
     @media (max-width: 720px) {
         .research-actions-intro {
             display: block;
-        }
-        .research-actions-heading {
-            margin-top: 6px;
         }
         .research-actions-grid {
             grid-template-columns: 1fr;

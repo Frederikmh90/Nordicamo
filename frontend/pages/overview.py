@@ -84,19 +84,16 @@ def _research_action_items() -> str:
     """Render the three primary ways researchers can enter the observatory."""
     actions = [
         (
-            "01",
             "Compare",
             "Explorer",
             "Compare publication patterns, outlet structure, and topics across the Nordic region or within one country.",
         ),
         (
-            "02",
             "Investigate",
             "Media",
             "Inspect an outlet's profile, orientation, activity, and latest indexed articles.",
         ),
         (
-            "03",
             "Build a research case",
             "Workshop",
             "Start with a question, shape a bounded metadata preview, and prepare a documented dataset request.",
@@ -104,17 +101,15 @@ def _research_action_items() -> str:
     ]
     return "".join(
         "<a class='research-action' href='?page={page}' target='_self'>"
-        "<div class='research-action-number'>{number}</div>"
         "<div class='research-action-title'>{title}</div>"
         "<div class='research-action-body'>{body}</div>"
         "<div class='research-action-link'>Open {title} <span aria-hidden='true'>&rarr;</span></div>"
         "</a>".format(
-            number=html.escape(number),
             title=html.escape(title),
             page=html.escape(page, quote=True),
             body=html.escape(body),
         )
-        for number, title, page, body in actions
+        for title, page, body in actions
     )
 
 
@@ -203,7 +198,8 @@ def show_overview_page() -> None:
         st.markdown(
             "<div class='subtle' style='color:#111111;font-size:1.14rem;line-height:1.65;'><strong>Nordic Alternative Media Observatory (Nordicamo)</strong> is a comparative research platform for studying "
             "alternative news media across the continental Nordic region (currently <strong>Denmark, Finland, Norway, and Sweden</strong>). "
-            "It tracks articles from active alternative news media, connecting current observation with a growing historical archive.</div>",
+            "It tracks articles from active alternative news media, connecting current observation with a growing historical archive. "
+            "The platform supports cross-national comparison, outlet-level investigation, and transparent development of research cases.</div>",
             unsafe_allow_html=True,
         )
     with hero_right:
@@ -235,7 +231,6 @@ def show_overview_page() -> None:
         <section class='research-actions' aria-label='Research actions'>
             <div class='research-actions-intro'>
                 <div class='research-actions-kicker'>Research pathways</div>
-                <div class='research-actions-heading'>Begin with the question you need to answer.</div>
             </div>
             <div class='research-actions-grid'>{_research_action_items()}</div>
         </section>
