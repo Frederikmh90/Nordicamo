@@ -165,6 +165,12 @@ st.markdown("""
         color: #111111;
         margin: 0 0 var(--space-2) 0;
     }
+    .landing-about-title {
+        color: var(--color-logo);
+        font-size: 15px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
 
     .subtle {
         color: var(--color-text-muted);
@@ -423,7 +429,7 @@ st.markdown("""
 	        font-family: 'Manrope', 'Helvetica', 'Arial', sans-serif;
 	        font-size: 0.95rem;
 	        font-weight: 600;
-	        color: #0054a3 !important;
+	        color: #0f3855 !important;
         text-decoration: none;
         padding: 8px 12px;
         border-radius: 8px;
@@ -439,7 +445,7 @@ st.markdown("""
 	    .nav-link:visited,
 	    .nav-link:hover,
 	    .nav-link:active {
-	        color: #0054a3 !important;
+	        color: #0f3855 !important;
 	        text-decoration: none !important;
 	    }
     .nav-link:focus,
@@ -451,7 +457,7 @@ st.markdown("""
         background: #e6eef4;
     }
 	    .nav-link.active {
-	        color: #0054a3 !important;
+	        color: #0f3855 !important;
 	        text-decoration: none;
 	    }
     .nav-link.cta {

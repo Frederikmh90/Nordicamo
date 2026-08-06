@@ -214,7 +214,7 @@ def show_overview_page() -> None:
     hero_left, hero_right = st.columns([2.3, 1.2])
     with hero_left:
         st.markdown(
-            "<div class='section-title'>About the Observatory</div>",
+            "<div class='section-title landing-about-title'>About the Observatory</div>",
             unsafe_allow_html=True,
         )
         st.markdown(
