@@ -47,6 +47,22 @@ class TestEmailService(unittest.TestCase):
             email_service.send_contact_email("Ada", "ada@example.com", "Hi")
             smtp_mock.assert_called_once()
 
+    def test_resend_request_identifies_nordicamo_client(self):
+        os.environ["RESEND_API_KEY"] = "test-key"
+        os.environ["RESEND_FROM"] = "requests@nordicamo.org"
+
+        with mock.patch("app.services.email_service.request.urlopen") as urlopen_mock:
+            response = urlopen_mock.return_value.__enter__.return_value
+            response.status = 200
+
+            email_service._send_via_resend("Ada", "ada@example.com", "Hi", "frmohe@ruc.dk")
+
+            sent_request = urlopen_mock.call_args.args[0]
+            self.assertEqual(
+                sent_request.get_header("User-agent"),
+                "Nordicamo/1.0 (+https://nordicamo.org)",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

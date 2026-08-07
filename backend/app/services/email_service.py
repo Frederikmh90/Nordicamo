@@ -71,6 +71,7 @@ def _send_via_resend(name: str, email: str, message: str, to_address: str) -> No
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "Nordicamo/1.0 (+https://nordicamo.org)",
         },
         method="POST",
     )
