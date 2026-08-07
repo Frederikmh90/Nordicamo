@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from contact import build_access_mailto
 from pages.footer import render_footer_bar
+from services.api import send_access_request
 
 ACCESS_FEEDBACK_TEXT = (
     "You are also welcome to suggest platform features, outlet candidates for future "
@@ -26,20 +26,10 @@ def show_get_access_page() -> None:
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         st.markdown(
             "<div class='access-checklist'><strong>Prepared workshop request</strong><br/>"
-            "Review and edit this text before opening the prepared email.</div>",
+            "Review and edit this text before sending your request.</div>",
             unsafe_allow_html=True,
         )
-        request_draft = st.text_area(
-            "Prepared workshop request",
-            key="access_request_draft",
-            height=250,
-        )
-        mailto = build_access_mailto("", "", request_draft)
-        st.link_button("Open a prepared email request", mailto)
-        if st.button("Clear prepared selection"):
-            st.session_state.pop("access_request_context", None)
-            st.session_state.pop("access_request_draft", None)
-            st.rerun()
+
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     st.markdown(
         """
@@ -54,6 +44,34 @@ def show_get_access_page() -> None:
         unsafe_allow_html=True,
     )
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+    with st.form("access_request_form", clear_on_submit=True):
+        name = st.text_input("Name")
+        email = st.text_input("Email")
+        message = st.text_area(
+            "Request",
+            key="access_request_draft",
+            height=250 if request_context else 180,
+            placeholder="Describe the research, journalism, or teaching purpose of your request.",
+        )
+        submitted = st.form_submit_button("Send access request")
+
+    if submitted:
+        if not name.strip() or not email.strip() or not message.strip():
+            st.error("Please provide your name, email address, and request.")
+        else:
+            status = send_access_request(name.strip(), email.strip(), message.strip())
+            if status == "sent":
+                st.success("Request sent. We will reply to the email address you provided.")
+                st.session_state.pop("access_request_context", None)
+            elif status == "queued":
+                st.success("Request received. We will reply to the email address you provided.")
+
+    if request_context and st.button("Clear prepared selection"):
+        st.session_state.pop("access_request_context", None)
+        st.session_state.pop("access_request_draft", None)
+        st.rerun()
+
     st.markdown(
         "<div class='about-card'><strong>Email:</strong> frmohe @ ruc.dk "
         "(Frederik Henriksen, postdoc in the AlterPublics research project)<br/>"
